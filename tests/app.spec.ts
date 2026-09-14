@@ -2683,6 +2683,64 @@ describe('TuiApp 流式提交', () => {
     await app.dispose()
   })
 
+  it('0.1.5 正常回合（无 attempt，正文内嵌 message.stream）→ 回退渲染正文（#58）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('stream-msg-only')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin(), theme: 'paper' })
+    await app.attach()
+    const id = app.sessionId
+    if (id === null) throw new Error('no active session')
+    const emit = sessionEventBus(ctx)
+    emit(id, { seq: 1, time: 1, type: 'turn/start', data: { turn: 1 } })
+    // 正常成功回合：只有 assistant/message（内嵌精确流），无 attempt 事件
+    emit(id, {
+      seq: 2, time: 2, type: 'assistant/message',
+      data: {
+        turn: 1, step: 0,
+        message: { role: 'assistant', content: [{ type: 'text', text: '正常' }] },
+        stream: [{ type: 'chunk', time: 2, chunk: { type: 'text-delta', text: '正常' } }],
+      },
+    })
+    await new Promise(resolve => setImmediate(resolve))
+
+    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('正常')
+    await app.dispose()
+  })
+
+  it('0.1.5 中断残文路径：attempt 已流式上屏后 message 不重复补推（#58）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('stream-dedup')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin(), theme: 'paper' })
+    await app.attach()
+    const id = app.sessionId
+    if (id === null) throw new Error('no active session')
+    const emit = sessionEventBus(ctx)
+    emit(id, { seq: 1, time: 1, type: 'turn/start', data: { turn: 1 } })
+    emit(id, { seq: 2, time: 2, type: 'assistant/attempt', data: { turn: 1, step: 0, stream: [{ type: 'chunk', time: 2, chunk: { type: 'text-delta', text: '残文' } }] } })
+    emit(id, {
+      seq: 3, time: 3, type: 'assistant/message',
+      data: {
+        turn: 1, step: 0, interrupted: true,
+        message: { role: 'assistant', content: [{ type: 'text', text: '残文尾巴' }] },
+        stream: [{ type: 'chunk', time: 3, chunk: { type: 'text-delta', text: '残文尾巴' } }],
+      },
+    })
+    await new Promise(resolve => setImmediate(resolve))
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('残文') // attempt 已流式上屏
+    expect(written).not.toContain('尾巴') // message 不重复补推（同 step 已有流式增量）
+    await app.dispose()
+  })
+
   it('aborted turn 的流式残文不进 scrollback', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('stream-2')

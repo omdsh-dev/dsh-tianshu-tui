@@ -123,7 +123,9 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.30`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.30)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.31`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.31)).
+
+**0.1.2-rc.31 (2026-09-14)**: fixes #58 — assistant body text missing on normal turns against the 0.1.5 host (attempt events only occur on error/interrupt paths; normal turns deliver text embedded in assistant/message, now rendered at the message boundary with per-step streamed-text dedup). ⚠ Requires host ≥ 0.1.5-rc.1 and node ≥ 24.4 (the 0.1.5 host CLI entry depends on `import.meta.main`; older nodes exit silently with no output).
 
 **0.1.2-rc.30 (2026-09-12)**: host line moves to 0.1.5 (official `latest` is now 0.1.5-rc.1) — streaming events `assistant/chunk`→batched `assistant/attempt`, the new sessionPersistence contract (snapshot list + open/read handles), defensive rendering for missing timestamps in cross-format stores; real-machine pty e2e green. ⚠ Requires host ≥ 0.1.5-rc.1.
 
@@ -133,7 +135,6 @@ Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.30`](https://www.npm
 
 **0.1.2-rc.27 (2026-08-29)**: two backports from Tianshu — actionable errors (beyond the full error commit + recovery hint, the last delivered message is auto-refilled into the input line with a `↩` "may not have been fully processed" note; edit and re-send; cleared on successful turns, drafts never clobbered); plan-review decision-card visual layering (dim decision-zone divider + `❯`/success primary-action highlight; rendering byte-identical when no theme is passed).
 
-**0.1.2-rc.26 (2026-08-28)**: the P1 polish six-pack — Esc layering finished (post-abort grace period + armed hint line), a playful verb pool on the glance line, explicit priority-based footer degradation, error recovery hints (every error names the next action), a steadier fixed-height viewport (chrome panels no longer jolt the input track), and fish-style history ghost suggestions (`→` to accept); `/scroll` cap now configurable.
 
 
 

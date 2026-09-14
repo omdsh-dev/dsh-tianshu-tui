@@ -685,6 +685,12 @@ export class TuiApp {
   private compactMode = false
   /** reasoning 流缓冲（reasoning-delta 累积）；段结束 commitReasoningBlock 落底清空。 */
   private reasoningText = ''
+  /**
+   * 当前 step 经实时流（attempt 事件）已上屏的正文累积。0.1.5 正常回合不落
+   * attempt（只在报错/中断路径出现），正文在 assistant/message 内嵌到达——
+   * 该字段是 message 回退渲染的防重复闸（同 step 已流式上屏则不再补推）。
+   */
+  private streamedStepText = ''
   /** 当前推理段起点（首个 reasoning-delta 的事件时间，Unix epoch ms）；live/落底耗时数据源。 */
   private reasoningStartedAt: number | null = null
   /** 最近一次已落底推理块（折叠头行 + 保留全文；Ctrl+O 展开查看）。会话切换清理。 */
@@ -3342,6 +3348,27 @@ export class TuiApp {
    * turn 的残文由 handleAbort discard/reset，不在此 commit。
    * @param event - 当前会话的 session/event（订阅处已按会话过滤）。
    */
+  /**
+   * 摄入一段压缩模型流（AssistantStreamRecord 展开后的逐 delta 处理）：
+   * text-delta 推进 blockWriter（正文开始即推理段结束点——推理段先于本
+   * step 一切 text-delta，此刻 blockWriter 必为空，顺序天然安全）；
+   * reasoning-delta 进推理通道（首 delta 记时间戳）。attempt 实时事件与
+   * assistant/message 内嵌流的回退渲染共用本管线（#58）。
+   */
+  private ingestAssistantStream(stream: ReadonlyArray<Parameters<typeof expandAssistantStream>[0][number]>): void {
+    for (const { time: chunkTime, chunk } of expandAssistantStream(stream)) {
+      if (chunk.type === 'text-delta') {
+        this.commitReasoningBlock()
+        this.blockWriter.push(chunk.text)
+        this.streamedStepText += chunk.text
+      } else if (chunk.type === 'reasoning-delta') {
+        if (this.reasoningText === '') this.reasoningStartedAt = chunkTime
+        this.reasoningText += chunk.text
+        this.renderBatcher.schedule()
+      }
+    }
+  }
+
   private handleStreamEvent(event: SessionEvent): void {
     // 投影层 fold（turn 统计 + 会话汇总）：先于 switch 折叠每条事件——fold 内部
     // 对无关事件原样返回，代价可忽略；两模型只读事件，不写回任何状态。
@@ -3349,24 +3376,30 @@ export class TuiApp {
     this.sessionSummary = applySummaryEvent(this.sessionSummary, event)
     switch (event.type) {
       case 'assistant/attempt': {
-        // 0.1.5：text/reasoning delta 批量打包进 attempt（压缩流记录展开）
-        for (const { time: chunkTime, chunk } of expandAssistantStream(event.data.stream)) {
-          if (chunk.type === 'text-delta') {
-            // 正文开始即推理段结束点：先整块落底（此刻 blockWriter 必为空——
-            // 推理段先于本 step 一切 text-delta，顺序天然安全）。
-            this.commitReasoningBlock()
-            this.blockWriter.push(chunk.text)
-          } else if (chunk.type === 'reasoning-delta') {
-            if (this.reasoningText === '') this.reasoningStartedAt = chunkTime
-            this.reasoningText += chunk.text
-            this.renderBatcher.schedule()
-          }
-        }
+        // 0.1.5：text/reasoning delta 批量打包进 attempt（压缩流记录展开）。
+        // 注意 attempt 只在报错/中断路径出现——正常回合的正文经
+        // assistant/message 内嵌 stream 到达（见该分支的回退渲染，#58）。
+        this.ingestAssistantStream(event.data.stream)
         break
       }
       case 'assistant/message': {
         // reasoning-only step（无 text-delta 的推理段）在消息组装点落底。
         this.commitReasoningBlock()
+        // 0.1.5 正常成功回合不走实时流（attempt 只在报错/中断路径落盘）：
+        // 本 step 无流式增量时回退渲染 message 内嵌的精确流——与真流式同走
+        // ingestAssistantStream（节流切块/推理通道/时间戳语义一致）；已流式
+        // 上屏（中断残文路径）则跳过，防重复由 streamedStepText 把关（#58）。
+        if (this.streamedStepText === '') {
+          this.ingestAssistantStream(event.data.stream ?? [])
+          // 兜底的兜底：内嵌流为空（旧宿主/合成事件不携带）而正文有内容时，
+          // 折 message.content 的 text 块——正文绝不静默丢弃。
+          if (this.streamedStepText === '') {
+            for (const block of event.data.message.content) {
+              if (block.type === 'text' && block.text !== '') this.blockWriter.push(block.text)
+            }
+          }
+        }
+        this.streamedStepText = ''
         // 最后一次请求的 token 计量（缓存命中率/上下文占比数据源；适配器未报
         // usage 时保持上一次折叠——同一会话内后续段仍可用）。
         if (event.data.usage !== undefined) {
@@ -3424,6 +3457,8 @@ export class TuiApp {
       case 'turn/start':
         // A5：回合开始 → 标记请求在途，静默提示生效（turn/end 由 onTurnComplete 复位）。
         this.fluency.onTurnStart()
+        // 上回合中断可能留下的 step 增量记账清零（message 消费点已清，双保险）。
+        this.streamedStepText = ''
         break
       case 'turn/end': {
         // Phase 9d：turn 边界复位流利度信号

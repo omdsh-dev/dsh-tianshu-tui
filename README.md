@@ -122,7 +122,9 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.30`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.30)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.31`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.31)）。
+
+**0.1.2-rc.31（2026-09-14）**：修复 #58——0.1.5 宿主正常回合的助手正文不渲染（attempt 事件只在报错/中断路径出现，正常回合正文随 assistant/message 内嵌流到达；现于 message 边界回退渲染，防重复由同 step 流式增量把关）。⚠ 需宿主 ≥ 0.1.5-rc.1；另请确保 node ≥ 24.4（0.1.5 宿主 CLI 入口依赖 `import.meta.main`，过旧 node 下静默无输出）。
 
 **0.1.2-rc.30（2026-09-12）**：宿主线上到 0.1.5（官方 `latest` 已切 0.1.5-rc.1）——流式事件 `assistant/chunk`→`assistant/attempt` 批量改批、sessionPersistence 新契约（快照列表 + open/read 句柄）、遗留库时间渲染防御；真机 pty e2e 全绿。⚠ 需宿主 ≥ 0.1.5-rc.1。
 
@@ -132,7 +134,6 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 **0.1.2-rc.27（2026-08-29）**：回流 Tianshu 两项——错误时刻可行动（错误落底 + 指引之外，最近一条已投递消息自动回填输入行，`↩` 告知「可能未被完整处理」，改一下即可重发；成功回合清底料、有草稿不抢写）；plan-review 决策卡视觉分层（dim 决策区分隔线 + approve `❯`/success 主操作高亮，主题不传时渲染不变）。
 
-**0.1.2-rc.26（2026-08-28）**：P1 交互打磨六连——Esc 分层收尾（打断 grace 期 + 布防提示行）、glance 拟人动词池、footer 显式分级降级、错误恢复指引（每个错误附下一步操作）、定高视口强化（chrome 开合输入轨不跳）、fish 式历史建议 ghost（`→` 接受）；`/scroll` 上限可配。
 
 
 

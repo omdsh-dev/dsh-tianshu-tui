@@ -16,6 +16,13 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CLI="$ROOT/vendor/dsh-runtime/node_modules/@deepseek-ai/dsh/lib/bin.js"
 EXPECT="$(command -v expect || true)"
 
+# node 版本金丝雀：0.1.5 宿主入口用 import.meta.main（node ≥24.4）——过旧的
+# node 下 CLI 静默 no-op（exit 0 无输出），expect 直接断连，报错极难读。
+if [ -z "$(node "$CLI" --version 2>/dev/null || true)" ]; then
+  echo "宿主 CLI --version 无输出：当前 node $(node --version) 过旧（0.1.5 宿主需 ≥24.4 的 import.meta.main）。换新 node 后重试。" >&2
+  exit 1
+fi
+
 if [ ! -f "$CLI" ]; then
   echo "缺少 vendor/dsh-runtime（官方 CLI 依赖树）。先跑:" >&2
   echo "  npx -y @deepseek-ai/dsh --version   # 生成 npx 缓存" >&2

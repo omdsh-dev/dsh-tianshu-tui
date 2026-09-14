@@ -3,6 +3,17 @@
 版本更新记录。安装与当前版本见 [README](README.md)；完整历史在此。
 `/changelog` 在 TUI 内查看（默认当前版本，`/changelog all` 全部，`/changelog N` 最近 N 版）。
 
+## [0.1.2-rc.31] - 2026-09-14
+
+修复 [#58](https://github.com/huiliyi37/dsh-tianshu-tui/issues/58)：0.1.5 宿主上正常回合的助手正文不渲染。
+
+- **根因** — 0.1.5 的 agent-loop 只在**报错/中断路径**落 `assistant/attempt` 事件；正常成功回合直接落 `assistant/message`（正文在 `data.message.content` + 内嵌 `data.stream`）。rc.30 的实时渲染只消费 attempt → 正常回合正文被静默丢弃（replay 路径不受影响，重开会话才见答案——极易误判为模型/网络问题）。
+- **修复** — `handleStreamEvent` 的 `assistant/message` 分支：本 step 无流式增量（`streamedStepText` 把关，中断残文路径不重复）时回退渲染 message **内嵌的精确流**（与真流式同一管线：节流切块/推理通道/时间戳）；内嵌流为空的旧宿主/合成事件再兜底折 `message.content` 的 text 块——正文绝不静默丢弃。attempt 分支与回退共用提取出的 `ingestAssistantStream`。
+- **e2e node 金丝雀** — 0.1.5 宿主入口依赖 `import.meta.main`（node ≥24.4）：过旧 node 下 CLI 静默 no-op（exit 0 无输出）。e2e 启动前校验 `--version` 有输出，失败即给出换 node 的明确指引。
+- 回归测试：message-only 回合正文渲染 + attempt 流后 message 不重复补推（`#58` 两例）。
+
+验证：typecheck 0；全量 2718/2718（--no-file-parallelism）；真机 pty e2e 全绿（node v24.18.0）。
+
 ## [0.1.2-rc.30] - 2026-09-12
 
 宿主线上到 0.1.5（官方 `latest` 已于 09-11 切到 0.1.5-rc.1，#57 同期）。
