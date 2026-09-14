@@ -242,6 +242,22 @@ describe('BtwController', () => {
     controller.dispose()
   })
 
+  it('答案流：重试路径下流式增量与 message 正文按序拼接（不丢 attempt#2 正文）', async () => {
+    const { ctx, emit } = makeCtx()
+    const controller = new BtwController({ ctx, activeSessionId: () => ACTIVE, timeoutMs: 1000 })
+    await controller.ask('q')
+    const btwId = (ctx.agents.create.mock.calls[0]![0] as { sessionId: SessionId }).sessionId
+
+    // attempt#1 失败：只落流式增量（部分正文）
+    emit(btwId, event(0, 'assistant/attempt', { turn: 1, step: 0, stream: [{ type: 'chunk', time: 1, chunk: { type: 'text-delta', text: '残' } }] }))
+    // retry 后 attempt#2 成功：正文在 message.content（与上面来自不同 attempt）
+    emit(btwId, event(1, 'assistant/message', { turn: 1, step: 0, message: { role: 'assistant', content: [{ type: 'text', text: '完整答' }] } }))
+    emit(btwId, event(2, 'turn/end', { reason: { kind: 'stop' } }))
+
+    expect(controller.peek()).toEqual({ status: 'done', question: 'q', answer: '残完整答' })
+    controller.dispose()
+  })
+
   it('非 btw session 的事件不进入答案流（按 id 过滤）', async () => {
     const { ctx, emit } = makeCtx()
     const controller = new BtwController({ ctx, activeSessionId: () => ACTIVE, timeoutMs: 1000 })

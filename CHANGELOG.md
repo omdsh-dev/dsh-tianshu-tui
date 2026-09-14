@@ -3,6 +3,17 @@
 版本更新记录。安装与当前版本见 [README](README.md)；完整历史在此。
 `/changelog` 在 TUI 内查看（默认当前版本，`/changelog all` 全部，`/changelog N` 最近 N 版）。
 
+## [Unreleased]
+
+修复 #58 复审发现的重试路径正文丢失：LLM 重试后该 step 的正文被整段丢弃。
+
+- **根因** — 6a9902b 为防「attempt 与 message 重复渲染」引入了 `streamedStepText`（本 step 经实时流已上屏的**正文**累积），并在 `assistant/message` 分支以「非空则整段跳过回退渲染」作闸。但宿主每次 LLM 尝试都是**独立 attempt**：`dsh-agent-loop` 以 `new AssistantStreamAttempt(++assistantAttemptCounter)` 新建流累积器，try/catch 内恰好落盘一次（message 或 attempt），外层 catch 只 `live.abandon()`（发 UI 事件、不落盘）——同一 `{turn,step}` 的 attempt 与 message **必来自不同 attempt、内容不重叠**。于是重试路径（官方 `dsh-llm-retry` 在 `agent/request-error` 返回 `{kind:'retry'}`，网络抖动/超时/限流即触发）下，attempt#1 的增量一旦非空，attempt#2 成功回合的正文被整段跳过——用户看到「重试后没有回答」。
+- **修复** — 去掉按 step 的去重闸：`assistant/message` 一律渲染内嵌精确流（`ingestAssistantStream` 改为返回「本次是否摄入过 delta」，流为空才折 `message.content` 的 text 块兜底）；`streamedStepText` 字段与 `turn/start` 处的清零一并移除。顺带校正 6a9902b 引入的注释错位（`handleStreamEvent` 的 doc comment 曾悬在 `ingestAssistantStream` 之上）。
+- **btw 同族修复** — `/btw` 答案收集原为「流式 buffer 非空则整段取 buffer，否则回退 message 正文」的二选一，同样会在重试路径截断；改为按事件顺序统一累积两个来源。
+- 回归测试：重试路径正文渲染（`tests/app.spec.ts`，替换原「不重复补推」用例——那条 `not.toContain('尾巴')` 实际把「丢正文」固化为预期）、btw 重试按序拼接（`tests/btw-controller.spec.ts`）。
+
+验证：typecheck 0；全量 2719/2719（`--no-file-parallelism`）。
+
 ## [0.1.2-rc.31] - 2026-09-14
 
 修复 [#58](https://github.com/huiliyi37/dsh-tianshu-tui/issues/58)：0.1.5 宿主上正常回合的助手正文不渲染。

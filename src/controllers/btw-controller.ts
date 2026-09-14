@@ -151,12 +151,14 @@ export class BtwController {
         })
       },
     })
-    // 答案流订阅：attempt 增量收集进 buffer，turn/end 定稿（与主会话 streamFeed
-    // 同款事件词汇，按 btw session id 过滤，互不干扰）。
-    // rc.2 起 attempt 事件可能整体缺席（即时完成的流不落增量），此时答案只在
-    // assistant/message 的正文里——turn/end 时优先流式 buffer，回退消息正文。
+    // 答案流订阅：正文按事件顺序累积进同一 buffer，turn/end 定稿（与主会话
+    // streamFeed 同款事件词汇，按 btw session id 过滤，互不干扰）。
+    // 两个来源都要收：正常成功回合只落 assistant/message（正文在 content），
+    // 中断/报错回合只落 assistant/attempt（正文在压缩流记录）；同一 {turn,step}
+    // 的 attempt 与 message 来自不同 attempt（宿主每次尝试新建流累积器）、内容
+    // 不重叠——按事件顺序拼接即可。不做「流式非空就整段取流式」的二选一，那会
+    // 丢掉重试后 attempt#2 的正文（#58 复审）。
     const buffer: string[] = []
-    const messageText: string[] = []
     const feed = this.ctx.on('session/event', (owner: { id: SessionId }, event: SessionEvent) => {
       if (owner.id !== btwId) return
       // 0.1.5：text delta 走批量 assistant/attempt（压缩流记录展开）
@@ -167,11 +169,10 @@ export class BtwController {
       } else if (event.type === 'assistant/message') {
         const message = (event.data as { message?: { content?: ReadonlyArray<{ type: string; text?: string }> } }).message
         for (const block of message?.content ?? []) {
-          if (block.type === 'text' && block.text !== undefined) messageText.push(block.text)
+          if (block.type === 'text' && block.text !== undefined) buffer.push(block.text)
         }
       } else if (event.type === 'turn/end') {
-        const streamed = buffer.join('')
-        this.finish(streamed.length > 0 ? streamed : messageText.join(''))
+        this.finish(buffer.join(''))
       }
     })
     this.handle = handle

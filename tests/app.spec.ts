@@ -2711,9 +2711,12 @@ describe('TuiApp 流式提交', () => {
     await app.dispose()
   })
 
-  it('0.1.5 中断残文路径：attempt 已流式上屏后 message 不重复补推（#58）', async () => {
+  it('0.1.5 重试路径：attempt#1 失败后 message（attempt#2）正文仍渲染（#58 复审）', async () => {
+    // 宿主每次 LLM 尝试都是独立 attempt（agent-loop `new AssistantStreamAttempt(++assistantAttemptCounter)`，
+    // 各自独立累积流），同一 {turn,step} 的 attempt 与 message 必来自不同 attempt、
+    // 内容不重叠——按 step 粒度跳过回退会把重试后的正文整段丢弃。
     const ctx = makeCtx()
-    const agent = makeAgent('stream-dedup')
+    const agent = makeAgent('stream-retry')
     ctx.agents.create.mockResolvedValue(makeHandle(agent))
     ctx.sessions.get.mockReturnValue(agent.session)
     const stdout = makeStdout()
@@ -2724,20 +2727,22 @@ describe('TuiApp 流式提交', () => {
     if (id === null) throw new Error('no active session')
     const emit = sessionEventBus(ctx)
     emit(id, { seq: 1, time: 1, type: 'turn/start', data: { turn: 1 } })
-    emit(id, { seq: 2, time: 2, type: 'assistant/attempt', data: { turn: 1, step: 0, stream: [{ type: 'chunk', time: 2, chunk: { type: 'text-delta', text: '残文' } }] } })
+    // attempt#1 失败：落 attempt 事件（部分正文）
+    emit(id, { seq: 2, time: 2, type: 'assistant/attempt', data: { turn: 1, step: 0, stream: [{ type: 'chunk', time: 2, chunk: { type: 'text-delta', text: '残缺甲' } }] } })
+    // retry 后 attempt#2 成功：落 message（完整正文）
     emit(id, {
       seq: 3, time: 3, type: 'assistant/message',
       data: {
-        turn: 1, step: 0, interrupted: true,
-        message: { role: 'assistant', content: [{ type: 'text', text: '残文尾巴' }] },
-        stream: [{ type: 'chunk', time: 3, chunk: { type: 'text-delta', text: '残文尾巴' } }],
+        turn: 1, step: 0,
+        message: { role: 'assistant', content: [{ type: 'text', text: '完整乙' }] },
+        stream: [{ type: 'chunk', time: 3, chunk: { type: 'text-delta', text: '完整乙' } }],
       },
     })
     await new Promise(resolve => setImmediate(resolve))
 
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('残文') // attempt 已流式上屏
-    expect(written).not.toContain('尾巴') // message 不重复补推（同 step 已有流式增量）
+    expect(written).toContain('残缺甲') // attempt#1 已流式上屏
+    expect(written).toContain('完整乙') // attempt#2 的正文绝不静默丢弃
     await app.dispose()
   })
 
