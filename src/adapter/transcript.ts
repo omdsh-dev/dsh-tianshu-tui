@@ -16,7 +16,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
-import { foldAssistantStream, foldMessageContent } from './assistant-stream.js'
+import { foldMessageContent } from './assistant-stream.js'
 
 /** One completed message row on the TUI surface. */
 export interface TranscriptMessage {
@@ -58,23 +58,11 @@ export interface TranscriptToolCall {
   readonly error: { readonly name: string; readonly code: string } | undefined
 }
 
-/** In-progress assistant output being aggregated from `assistant/chunk` events. */
-export interface TranscriptStream {
-  readonly turn: number
-  readonly step: number
-  /** Visible text accumulated so far from `text-delta` chunks only. */
-  readonly text: string
-  /** Reasoning accumulated so far from `reasoning-delta` chunks only. */
-  readonly reasoning: string
-}
-
 /** The immutable, derived transcript state for one session. */
 export interface TranscriptView {
   readonly sessionId: SessionId
   /** Completed user and assistant messages, in log order. */
   readonly messages: readonly TranscriptMessage[]
-  /** The chunk stream still awaiting its `assistant/message`, if any. */
-  readonly streaming: TranscriptStream | undefined
   /** Tool invocations in the order their `tool/call` appeared. */
   readonly tools: readonly TranscriptToolCall[]
   /** The turn opened by the latest `turn/start`, or -1 before any opens. */
@@ -93,7 +81,7 @@ export interface TranscriptView {
  * @returns 空消息/空工具、turn 与 seq 均为 -1 的初始视图。
  */
 export function emptyTranscript(sessionId: SessionId): TranscriptView {
-  return { sessionId, messages: [], streaming: undefined, tools: [], turn: -1, firstInTurnTime: undefined, seq: -1 }
+  return { sessionId, messages: [], tools: [], turn: -1, firstInTurnTime: undefined, seq: -1 }
 }
 
 /**
@@ -124,26 +112,11 @@ export function applyTranscriptEvent(view: TranscriptView, event: SessionEvent):
         ...(base.firstInTurnTime === undefined ? { firstInTurnTime: event.time } : {}),
       }
     }
-    case 'assistant/attempt': {
-      // 0.1.5：逐 delta 的 assistant/chunk 改为批量 attempt（压缩流记录）。
-      const { turn, step } = event.data
-      // Visible text and reasoning accumulate on separate lanes: mixing them
-      // would leak the model's draft stream into the rendered answer.
-      // A batch for a different step opens a fresh aggregation; same step accumulates.
-      const prior = base.streaming !== undefined && base.streaming.turn === turn && base.streaming.step === step
-        ? base.streaming
-        : undefined
-      const folded = foldAssistantStream(event.data.stream)
-      return {
-        ...base,
-        streaming: {
-          turn,
-          step,
-          text: (prior?.text ?? '') + folded.text,
-          reasoning: (prior?.reasoning ?? '') + folded.reasoning,
-        },
-      }
-    }
+    // 注：`assistant/attempt` 在此不折叠——它只携带「未成功的尝试」的流记录，
+    // 不含任何落定内容（失败尝试的正文由 app.ts 实时渲染并在其前落标记）。这里
+    // 曾维护一个 view.streaming 聚合，但 live 区的正文活尾实际取自 blockWriter
+    // （app.ts renderLive 的 getLiveTailLines(.., blockWriter.peek())），该状态无
+    // 任何生产消费方，已随死代码清理移除。
     case 'assistant/message': {
       const { turn, step, message } = event.data
       const folded = foldMessageContent(message.content)
@@ -157,14 +130,9 @@ export function applyTranscriptEvent(view: TranscriptView, event: SessionEvent):
         reasoning: folded.reasoning,
         event,
       }
-      // The matching chunk stream is closed by its assembled message.
-      const streaming = base.streaming !== undefined && base.streaming.turn === turn && base.streaming.step === step
-        ? undefined
-        : base.streaming
       return {
         ...base,
         messages: [...base.messages, row],
-        streaming,
         // 当前 turn 的首条 assistant 消息（turn 与 view.turn 对齐时）：
         // 记录时间供 glance elapsed 使用；跨 turn 迟到的消息不记录。
         ...(row.turn === base.turn && base.firstInTurnTime === undefined ? { firstInTurnTime: event.time } : {}),

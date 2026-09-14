@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest'
 import type { AssistantStreamRecord, ContentBlock } from '@deepseek-ai/dsh-llm'
-import { assistantDeltas, foldAssistantStream, foldMessageContent } from '../src/adapter/assistant-stream.js'
+import { assistantDeltas, foldMessageContent } from '../src/adapter/assistant-stream.js'
 
 /** 压缩正文 run：texts 逐条展开成 text-delta，dt[i] 是第 i+1 条相对前一条的毫秒增量。 */
 function textRun(time0: number, texts: readonly string[]): AssistantStreamRecord {
@@ -66,24 +66,6 @@ describe('assistantDeltas', () => {
   })
 })
 
-describe('foldAssistantStream', () => {
-  it('正文与推理分轨拼接，不混进同一串', () => {
-    const folded = foldAssistantStream([
-      reasoningRun(1, ['草稿', '流']),
-      textRun(2, ['最终', '答案']),
-    ])
-    expect(folded).toEqual({ text: '最终答案', reasoning: '草稿流' })
-  })
-
-  it('只有推理时 text 为空', () => {
-    expect(foldAssistantStream([reasoningRun(1, ['想'])]).text).toBe('')
-  })
-
-  it('空流返回双空串', () => {
-    expect(foldAssistantStream([])).toEqual({ text: '', reasoning: '' })
-  })
-})
-
 describe('foldMessageContent', () => {
   it('抽 text / reasoning 块，忽略其他块类型', () => {
     const content = [
@@ -95,13 +77,18 @@ describe('foldMessageContent', () => {
     expect(foldMessageContent(content)).toEqual({ text: '正文续', reasoning: '思考' })
   })
 
-  it('与压缩流路径同口径（分轨）', () => {
-    // 同一内容经两条路径读取应得到相同结果——这是共享层存在的意义。
+  it('与压缩流路径同口径（正文/推理分轨一致）', () => {
+    // 同一内容经两条路径读取应得到相同结果：stream 路径由 app 逐 delta 渲染，
+    // content 路径由 transcript/export 抽取——两条路径的正文与推理必须一致分轨。
     const viaContent = foldMessageContent([
       { type: 'reasoning', text: 'R' },
       { type: 'text', text: 'T' },
     ] as unknown as readonly ContentBlock[])
-    const viaStream = foldAssistantStream([reasoningRun(1, ['R']), textRun(2, ['T'])])
+    const deltas = assistantDeltas([reasoningRun(1, ['R']), textRun(2, ['T'])])
+    const viaStream = {
+      text: deltas.filter(d => d.kind === 'text').map(d => d.text).join(''),
+      reasoning: deltas.filter(d => d.kind === 'reasoning').map(d => d.text).join(''),
+    }
     expect(viaContent).toEqual(viaStream)
   })
 

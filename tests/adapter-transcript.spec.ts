@@ -75,7 +75,6 @@ describe('emptyTranscript', () => {
     expect(view.sessionId).toBe(sid)
     expect(view.messages).toEqual([])
     expect(view.tools).toEqual([])
-    expect(view.streaming).toBeUndefined()
     expect(view.turn).toBe(-1)
     expect(view.seq).toBe(-1)
   })
@@ -89,39 +88,6 @@ describe('applyTranscriptEvent', () => {
     expect(view.turn).toBe(3)
     expect(view.messages).toHaveLength(1)
     expect(view.messages[0]).toMatchObject({ kind: 'user', turn: 3, text: 'hello', seq: 2 })
-  })
-
-  it('accumulates same-step chunks into one streaming text', () => {
-    let view = emptyTranscript(sid)
-    view = applyTranscriptEvent(view, chunk(1, 1, 0, 'Hel'))
-    view = applyTranscriptEvent(view, chunk(2, 1, 0, 'lo'))
-    expect(view.streaming).toMatchObject({ turn: 1, step: 0, text: 'Hello' })
-  })
-
-  it('resets aggregation when a chunk arrives for a different step', () => {
-    let view = emptyTranscript(sid)
-    view = applyTranscriptEvent(view, chunk(1, 1, 0, 'old'))
-    view = applyTranscriptEvent(view, chunk(2, 1, 1, 'new'))
-    expect(view.streaming).toMatchObject({ turn: 1, step: 1, text: 'new' })
-  })
-
-  it('folds reasoning-delta chunks into the separate reasoning field', () => {
-    let view = emptyTranscript(sid)
-    view = applyTranscriptEvent(view, chunk(1, 1, 0, 'think', 'reasoning-delta'))
-    view = applyTranscriptEvent(view, chunk(2, 1, 0, 'text'))
-    expect(view.streaming?.reasoning).toBe('think')
-    expect(view.streaming?.text).toBe('text')
-  })
-
-  it('ignores non-delta chunks in the streaming text', () => {
-    let view = emptyTranscript(sid)
-    view = applyTranscriptEvent(view, ev({
-      seq: SessionSeq(1),
-      time: 1001,
-      type: 'assistant/attempt',
-      data: { turn: 1, step: 0, stream: [{ type: 'chunk', time: 1001, chunk: { type: 'block-start', index: 0, blockType: 'text' } }] },
-    } as unknown as SessionEvent))
-    expect(view.streaming).toMatchObject({ turn: 1, step: 0, text: '' })
   })
 
   it('folds text and reasoning blocks into separate fields', () => {
@@ -145,20 +111,11 @@ describe('applyTranscriptEvent', () => {
     expect(view.messages[0]?.reasoning).toBe('hidden')
   })
 
-  it('closes the stream when its assistant message commits', () => {
+  it('folds an assistant message into a row carrying its turn/step', () => {
     let view = emptyTranscript(sid)
-    view = applyTranscriptEvent(view, chunk(1, 1, 0, 'Hello'))
     view = applyTranscriptEvent(view, assistantMessage(2, 1, 0, 'Hello'))
-    expect(view.streaming).toBeUndefined()
     expect(view.messages).toHaveLength(1)
     expect(view.messages[0]).toMatchObject({ kind: 'assistant', turn: 1, step: 0, text: 'Hello' })
-  })
-
-  it('keeps an unrelated stream open when another step commits', () => {
-    let view = emptyTranscript(sid)
-    view = applyTranscriptEvent(view, chunk(1, 1, 0, 'Hello'))
-    view = applyTranscriptEvent(view, assistantMessage(2, 1, 1, 'other'))
-    expect(view.streaming).toMatchObject({ turn: 1, step: 0 })
   })
 
   it('registers tool calls in order', () => {
@@ -207,7 +164,6 @@ describe('applyTranscriptEvent', () => {
     view = applyTranscriptEvent(view, ev({ seq: SessionSeq(6), time: 1006, type: 'todo/write', data: { todos: [] } }))
     expect(view.seq).toBe(6)
     expect(view.messages).toHaveLength(0)
-    expect(view.streaming).toBeUndefined()
   })
 
   it('folds a full turn sequence end to end', () => {
@@ -226,7 +182,6 @@ describe('applyTranscriptEvent', () => {
     expect(view.messages.map(m => m.kind)).toEqual(['user', 'assistant'])
     expect(view.tools).toHaveLength(1)
     expect(view.tools[0]?.result?.seq).toBe(6)
-    expect(view.streaming).toBeUndefined()
   })
 })
 

@@ -31,7 +31,13 @@
 - **改法** — 既然撤回不可行，就让失败的尝试**可辨识**：`assistant/attempt` 分支在其正文前落一行 `⟳ 未完成的尝试`。判据用官方 record-level reader `assistantStreamHasVisibleText`（只认 text-delta 与 text block，**不认 reasoning**，不物化 chunk 序列），纯推理或空流的 attempt 不标记——它们本就没有读者可见内容。多次重试会落多个标记，用户因此能看到重试次数。
 - 回归测试 3 例（`tests/app.spec.ts`）：带正文的 attempt 落标记且标记在该次正文之前 / 纯推理 attempt 不落标记 / 正常回合（只有 message）不落标记。
 
-验证：typecheck 0；全量 2733/2733（`--no-file-parallelism`）。
+### 清理：移除无消费方的 transcript 流式聚合
+
+- **问题** — `TranscriptView.streaming`（`applyTranscriptEvent` 在 `assistant/attempt` 上累积的聚合）**没有任何生产消费方**：live 区的正文活尾实际取自 `blockWriter.peek()`（`src/ui/app.ts:3867` 的 `getLiveTailLines(.., this.blockWriter.peek())`），而 `streaming` 存的是「本 step 全部」，语义上反而冗余——已提交部分在 scrollback 里，不该在 live 区重复显示。全 `src/` 对该字段的读取只有 transcript.ts 自身的写入维护，其余 `streaming` 命中都是无关同名（工具卡字段 / 字形 / markdown 渲染选项）。它的注释也还停在 `assistant/chunk`——0.1.5 早已改成 attempt，无人留意。这与 `SessionManager` 是同一模式：只有测试在养着的状态。
+- **改法** — 删除 `TranscriptStream` 接口、`TranscriptView.streaming` 字段、`emptyTranscript` 的初始化、`applyTranscriptEvent` 的 `assistant/attempt` 分支（该分支只维护这一状态）与 `assistant/message` 分支里的清理逻辑。连带删除 `adapter/assistant-stream.ts` 的 `foldAssistantStream`——它失去唯一消费方（同模块的 `assistantDeltas` 与 `foldMessageContent` 仍有真实消费方，保留）。
+- 测试：`tests/adapter-transcript.spec.ts` 删 6 个纯 streaming 用例 + 3 行断言（其中「closes the stream...」改写为只断言 message 折叠，保留该覆盖）；`tests/assistant-stream.spec.ts` 删 `foldAssistantStream` 的 3 例，「两条路径同口径」这一不变量改用 `assistantDeltas` 对照保留。被删语义的覆盖由共享层的分轨与压缩形态用例承接，无净损失。另修正 `tests/render.spec.ts` 的 view 构造——这处由 **typecheck** 抓出（grep 找读取方，typecheck 找构造方）。
+
+验证：typecheck 0；全量 2725/2725（`--no-file-parallelism`）。
 
 ## [0.1.2-rc.31] - 2026-09-14
 

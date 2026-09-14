@@ -118,7 +118,6 @@ function view(messages: readonly TranscriptMessage[], tools: readonly Transcript
   return {
     sessionId: 's1' as SessionId,
     messages,
-    streaming: undefined,
     tools,
     turn: 1,
     firstInTurnTime: undefined,

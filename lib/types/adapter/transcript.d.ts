@@ -56,22 +56,11 @@ export interface TranscriptToolCall {
         readonly code: string;
     } | undefined;
 }
-/** In-progress assistant output being aggregated from `assistant/chunk` events. */
-export interface TranscriptStream {
-    readonly turn: number;
-    readonly step: number;
-    /** Visible text accumulated so far from `text-delta` chunks only. */
-    readonly text: string;
-    /** Reasoning accumulated so far from `reasoning-delta` chunks only. */
-    readonly reasoning: string;
-}
 /** The immutable, derived transcript state for one session. */
 export interface TranscriptView {
     readonly sessionId: SessionId;
     /** Completed user and assistant messages, in log order. */
     readonly messages: readonly TranscriptMessage[];
-    /** The chunk stream still awaiting its `assistant/message`, if any. */
-    readonly streaming: TranscriptStream | undefined;
     /** Tool invocations in the order their `tool/call` appeared. */
     readonly tools: readonly TranscriptToolCall[];
     /** The turn opened by the latest `turn/start`, or -1 before any opens. */
