@@ -119,9 +119,9 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@1.0.0`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v1.0.0)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@1.0.0-rc.1`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v1.0.0-rc.1)）。
 
-**1.0.0（2026-09-14）**：首个正式版，版本号脱离 `0.1.2-rc.n` 序列。收录 rc.31 之后的四项收敛——**重试路径正文丢失修复**（LLM 重试成功后该 step 的正文曾被整段丢弃：宿主每次尝试都是独立 attempt，按 step 粒度去重是模型性错误）；失败尝试的正文前落 `⟳ 未完成的尝试` 标记，避免它与成功正文被读成一段连续答案；assistant 流语义合并到 `adapter/assistant-stream` 单点维护（此前四处各自实现，同一宿主行为变更需四处联动）；移除两处无消费方的死状态（`SessionManager` 快照层、`TranscriptView.streaming` 聚合）。⚠ 需宿主 ≥ 0.1.5-rc.1；node ≥ 24.4。
+**1.0.0-rc.1（2026-09-14）**：1.0.0 的首个候选版，版本号进入 1.0 线。收录 0.1.2-rc.31 之后的四项收敛——**重试路径正文丢失修复**（LLM 重试成功后该 step 的正文曾被整段丢弃：宿主每次尝试都是独立 attempt，按 step 粒度去重是模型性错误）；失败尝试的正文前落 `⟳ 未完成的尝试` 标记，避免它与成功正文被读成一段连续答案；assistant 流语义合并到 `adapter/assistant-stream` 单点维护（此前四处各自实现，同一宿主行为变更需四处联动）；移除两处无消费方的死状态（`SessionManager` 快照层、`TranscriptView.streaming` 聚合）。⚠ 需宿主 ≥ 0.1.5-rc.1；node ≥ 24.4。
 
 **0.1.2-rc.31（2026-09-14）**：修复 #58——0.1.5 宿主正常回合的助手正文不渲染（attempt 事件只在报错/中断路径出现，正常回合正文随 assistant/message 内嵌流到达；现于 message 边界回退渲染，防重复由同 step 流式增量把关）。⚠ 需宿主 ≥ 0.1.5-rc.1；另请确保 node ≥ 24.4（0.1.5 宿主 CLI 入口依赖 `import.meta.main`，过旧 node 下静默无输出）。
 
