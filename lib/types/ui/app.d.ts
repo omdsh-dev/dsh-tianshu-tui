@@ -265,12 +265,6 @@ export declare class TuiApp {
     private compactMode;
     /** reasoning 流缓冲（reasoning-delta 累积）；段结束 commitReasoningBlock 落底清空。 */
     private reasoningText;
-    /**
-     * 当前 step 经实时流（attempt 事件）已上屏的正文累积。0.1.5 正常回合不落
-     * attempt（只在报错/中断路径出现），正文在 assistant/message 内嵌到达——
-     * 该字段是 message 回退渲染的防重复闸（同 step 已流式上屏则不再补推）。
-     */
-    private streamedStepText;
     /** 当前推理段起点（首个 reasoning-delta 的事件时间，Unix epoch ms）；live/落底耗时数据源。 */
     private reasoningStartedAt;
     /** 最近一次已落底推理块（折叠头行 + 保留全文；Ctrl+O 展开查看）。会话切换清理。 */
@@ -751,19 +745,20 @@ export declare class TuiApp {
     /** 生成当前会话历史消息的主题化渲染行。 */
     private renderHistoryRows;
     /**
-     * 流式事件供给：assistant text-delta 推进 blockWriter（节流切块，稳定前缀
-     * commit 进 scrollback）；message/turn 边界 flush + finalize 收尾。aborted
-     * turn 的残文由 handleAbort discard/reset，不在此 commit。
-     * @param event - 当前会话的 session/event（订阅处已按会话过滤）。
-     */
-    /**
      * 摄入一段压缩模型流（AssistantStreamRecord 展开后的逐 delta 处理）：
      * text-delta 推进 blockWriter（正文开始即推理段结束点——推理段先于本
      * step 一切 text-delta，此刻 blockWriter 必为空，顺序天然安全）；
      * reasoning-delta 进推理通道（首 delta 记时间戳）。attempt 实时事件与
      * assistant/message 内嵌流的回退渲染共用本管线（#58）。
+     * @returns 本次是否摄入过 delta（流为空时调用方需折 message.content 兜底）。
      */
     private ingestAssistantStream;
+    /**
+     * 流式事件供给：assistant text-delta 推进 blockWriter（节流切块，稳定前缀
+     * commit 进 scrollback）；message/turn 边界 flush + finalize 收尾。aborted
+     * turn 的残文由 handleAbort discard/reset，不在此 commit。
+     * @param event - 当前会话的 session/event（订阅处已按会话过滤）。
+     */
     private handleStreamEvent;
     /** tools 服务的 presenter 面（可选服务：未装配返回 undefined → 桥软降级）。 */
     private toolPresenters;
