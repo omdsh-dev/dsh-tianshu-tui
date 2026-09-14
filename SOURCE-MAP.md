@@ -50,7 +50,7 @@
 | src/controllers/question-controller.ts | — | new |
 | src/controllers/attachment-preview.ts | — | new（composer 附件缩略图域自 ui/app.ts C4 提取：半块预览 + 代际号丢弃迟到解码 + 底色解析） |
 | src/controllers/submit-queue.ts | — | new（运行中提交本地排队：turn/end 按序投递、↑ 取回队首、切会话丢弃回显——宿主 followup 无取回 API 故 TUI 自建；对标 CC queue） |
-| src/controllers/session-manager.ts | — | new |
+| src/controllers/session-manager.ts | — | new（resume 模型定路：持久化 request header 优先、agentDefaultModel 兜底，供 fork-agent/app 消费；原 P3 `SessionManager` 多会话快照层从未被生产代码消费，已随死代码清理移除） |
 | src/controllers/inspect-surface.ts | — | new（检查类 live 面板互斥开闭与键分发，从 ui/app.ts 抽出保棘轮） |
 | src/controllers/skill-surface.ts | — | new（#39 技能展示面：快照缓存 + userInvocable 过滤 + slash 菜单投影 + 手势 MRU + skills/change 订阅，从 ui/app.ts 提取） |
 | src/controllers/workflow-surface.ts | — | new（T2.2 workflow 六事件订阅 + 运行/终态双缓存 + 视图折叠，从 ui/app.ts 抽出保棘轮；渲染与通知经 opts 回调交还宿主） |

@@ -229,8 +229,6 @@ export declare class TuiApp {
     private readonly approval;
     /** P1：/btw 侧问状态机（临时 btw agent 旁路；Esc 折叠答案入 scrollback）。 */
     private readonly btw;
-    /** P3：多会话快照层（live store 派生；tab 栏数据源）。 */
-    private readonly sessionManager;
     /** T2.1：subagent 生命周期事件订阅 disposer；随会话挂载/卸载。 */
     private subagentDisposer;
     /** T2.2：workflow 事件订阅 disposer；attach 订阅、dispose 释放（跨会话运行）。 */

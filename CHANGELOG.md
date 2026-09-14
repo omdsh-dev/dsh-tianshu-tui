@@ -18,7 +18,13 @@
 - **改法** — 新增 `adapter/assistant-stream.ts` 承载唯一实现：`assistantDeltas`（压缩流 → 带原始时间戳的分轨增量）、`foldAssistantStream`（分轨折叠，正文与推理不混轨）、`foldMessageContent`（内容块路径同口径）。transcript 删 `foldText`/`foldReasoning` 改调共享层；app 的 `ingestAssistantStream` 改走 `assistantDeltas`（签名由 `Parameters<typeof expandAssistantStream>[0][number]` 收窄为 `readonly AssistantStreamRecord[]`）；export 删 `messageText`。btw 只要正文，改用官方 `joinAssistantStreamText`——record-level reader 不物化 chunk 序列，语义与「展开后拼 text-delta」等价。
 - 新增 `tests/assistant-stream.spec.ts`（10 例）：覆盖压缩 run 形态（`text-chunks` / `reasoning-chunks`，宿主 `AssistantStreamAccumulator` 落盘的主流形态——此前 TUI 各测试只构造过原始 `chunk`）与原始 chunk 形态，并断言「内容块路径与压缩流路径同口径」。
 
-验证：typecheck 0；全量 2729/2729（`--no-file-parallelism`）。
+### 清理：移除未接线的 SessionManager
+
+- **问题** — `controllers/session-manager.ts` 的 `SessionManager`（P3 多会话快照层，注释自述「tab 栏渲染消费 list()」，为未落地的 tab 栏准备）在 `ui/app.ts` 声明字段并在构造期实例化，此后**无任何调用**（`grep "sessionManager\." src/` 零匹配）。TUI 至今是单 live-agent 模型（`this.liveAgent`），其 `list()`/`statusOf()` 的能力实际由 `liveAgent.state.status` 覆盖。它只被自己的 spec 与 `app.spec.ts` 的一条 mock 注释养着——而**同一个文件里被真实消费的** `resumeModelSelection`（`adapter/fork-agent.ts` + `ui/app.ts` 引用）反而零测试覆盖。
+- **改法** — 删除 `SessionManager` 类与 `SessionSnapshot` 接口（连同 `app.ts` 的字段/构造/import）。`resumeModelSelection` 原地保留，不改名不改路径——避免把「清死代码」扩大成模块重组。`tests/session-manager.spec.ts` 由「测已删的类」改写为「测活函数」，补上它此前缺失的 4 例（持久化路由优先且不调 fallback / reasoningEffort 条件展开 / 无 header 落 fallback）。清掉 `app.spec.ts` 里指向 `SessionManager.list` 的过时 mock 注释；SOURCE-MAP 与 architecture 中英双版的条目描述同步。
+- 多会话 tab 栏若将来落地，应由真实消费方驱动设计，而不是复活这套快照层。
+
+验证：typecheck 0；全量 2730/2730（`--no-file-parallelism`）。
 
 ## [0.1.2-rc.31] - 2026-09-14
 

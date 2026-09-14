@@ -6770,7 +6770,9 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
       id, createdAt, version: 0, cwd: undefined, parentSession: undefined,
     })
     ctx.sessions.list.mockReturnValue([
-      // SessionManager.list 读 session.events.length——mock 必须带 events 数组
+      // 条目形状对齐 SessionStore.list() 返回：现有消费方只取 id（app.ts 落点选择）
+      // 与 header（adapter/sessions.ts 列表投影）；events/snapshotEvents 保留为完整
+      // 替身形状，避免将来新增消费方时静默 undefined。
       { id: oldS, header: headerOf(oldS, Date.now() - 3_600_000), events: [], snapshotEvents(this: { events?: unknown[] }) { return this.events ?? [] } },
       { id: newS, header: headerOf(newS, Date.now() - 1_000), events: [], snapshotEvents(this: { events?: unknown[] }) { return this.events ?? [] } },
     ])

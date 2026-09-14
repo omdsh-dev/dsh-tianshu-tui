@@ -27,7 +27,7 @@ src/
 │   ├── question-controller.ts  结构化提问
 │   ├── approval-controller.ts  审批(always-approve 本地态)
 │   ├── btw-controller.ts       侧问
-│   └── session-manager.ts      会话管理
+│   └── session-manager.ts      resume 模型定路(持久化 header 优先)
 ├── actions/                键位动作注册表(handleKey 动作化;keymap/footer 提示与审批梯度同源投影)
 ├── format/                 纯渲染函数(无 I/O,全部可单测)
 │   ├── markdown.ts / diff.ts / tool-card.ts / tool-group.ts / tool-family.ts

@@ -228,7 +228,7 @@ import {
 } from '../controllers/approval-controller.js'
 import { QuestionController } from '../controllers/question-controller.js'
 import { BtwController } from '../controllers/btw-controller.js'
-import { SessionManager, resumeModelSelection } from '../controllers/session-manager.js'
+import { resumeModelSelection } from '../controllers/session-manager.js'
 import { InspectSurfaceController } from '../controllers/inspect-surface.js'
 import { renderBtwPanel } from '../format/btw-panel.js'
 import { CHROME_GUTTER, formatBlueWelcomeHero, formatStarWelcomeHero, formatWelcomeHero, type WelcomeEnvCheck, type WelcomeTipItem } from '../format/welcome.js'
@@ -649,8 +649,6 @@ export class TuiApp {
   private readonly approval: ApprovalController
   /** P1：/btw 侧问状态机（临时 btw agent 旁路；Esc 折叠答案入 scrollback）。 */
   private readonly btw: BtwController
-  /** P3：多会话快照层（live store 派生；tab 栏数据源）。 */
-  private readonly sessionManager: SessionManager
   /** T2.1：subagent 生命周期事件订阅 disposer；随会话挂载/卸载。 */
   private subagentDisposer: (() => void) | null = null
   /** T2.2：workflow 事件订阅 disposer；attach 订阅、dispose 释放（跨会话运行）。 */
@@ -1249,8 +1247,6 @@ export class TuiApp {
         })
       },
     })
-    // P3：多会话快照层（不持有会话生命周期；tab 栏渲染时 list() 派生）。
-    this.sessionManager = new SessionManager(this.ctx)
     // 统一 action registry 装配（键路由数据源）：动作只经 ActionContext 门面触达本类
     // 私有方法。inspect 提示段构造期投影（静态）；审批提示段逐帧投影（p 段动态进出）。
     this.actionCtx = this.createActionContext()

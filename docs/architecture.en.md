@@ -25,7 +25,7 @@ src/
 │   ├── question-controller.ts  Structured questions
 │   ├── approval-controller.ts  Approvals (always-approve local state)
 │   ├── btw-controller.ts       Background ask
-│   └── session-manager.ts      Session management
+│   └── session-manager.ts      Resume model routing (persisted header wins)
 ├── format/                 Pure render functions (no I/O, all unit-testable)
 │   ├── markdown.ts / diff.ts / tool-card.ts / tool-group.ts / tool-family.ts
 │   ├── glance-bar.ts / top-bar.ts / prompt-footer.ts / welcome.ts
