@@ -1,28 +1,22 @@
 /**
- * SessionManager — 多会话 side conversation 快照层（P3）。
+ * 会话 resume 的模型定路。
  *
- * 会话快照从 live store 派生（不重复存储）：ctx.sessions.list() 是权威来源
- * （AgentRegistry 多 agent 并存 + SessionStore 多 session 天然支持），本层只
- * 做「session → 投影元数据」的派生与状态查询。tab 栏渲染消费 list()。
+ * resume 一个已有会话时，模型选择以该会话持久化的 request header 为准（跨重启
+ * 续模），而不是当前 agentDefaultModel——后者只在该会话从未成功发起请求
+ * （无 header）时兜底。纯推导，不读会话日志、不触发副作用。
  *
- * 会话生命周期归属：agent 由 agent-loop factory 持有（TuiApp 切换时经
- * detachProjections({ keepHandle: true }) 让渡所有权给 registry）；本层不
- * 创建/销毁会话——退出时由 factory 统一 teardown。
+ * 与 `adapter/sessions.ts` 的分工：那里负责会话列表 / 分叉 / 历史加载，本文件
+ * 只做「持久化路由段 → ModelSelection」这一步。
+ *
+ * 历史注：本文件原名 session-manager.ts，曾承载 P3 的 `SessionManager` 多会话
+ * 快照层（为未落地的 tab 栏准备）。该层从未被任何生产代码消费（TUI 至今是单
+ * live-agent 模型），已随死代码清理移除——多会话 tab 栏若将来落地，应由真实
+ * 消费方驱动设计，而不是复活旧账。
  *
  * @module @deepseek-ai/dsh-tianshu-tui/controllers/session-manager
  */
-import type { Context } from '@deepseek-ai/cordis';
-import type { SessionId } from '@deepseek-ai/dsh-session';
 import type { ModelSelection } from '@deepseek-ai/dsh-agent';
 import type { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
-/** 会话投影元数据（tab 栏/列表渲染消费；不存完整 transcript）。 */
-export interface SessionSnapshot {
-    id: SessionId;
-    /** agent 生命周期状态（running = 有驱动活动）。 */
-    status: 'idle' | 'running';
-    /** 事件条数（live session 的事件日志长度）。 */
-    messageCount: number;
-}
 /** resume 定路输入：会话持久化 request header 的路由段（缺 reasoningEffort 视为未定）。 */
 export interface PersistedRouteConfig {
     provider: string;
@@ -37,19 +31,3 @@ export interface PersistedRouteConfig {
  * @returns resume 使用的模型选择。
  */
 export declare function resumeModelSelection(persisted: PersistedRouteConfig | undefined, fallback: () => ModelSelection): ModelSelection;
-/** 多会话快照层：从 live store（ctx.sessions/ctx.agents）派生投影元数据，不持有会话生命周期。 */
-export declare class SessionManager {
-    private readonly ctx;
-    constructor(ctx: Context);
-    /**
-     * 全部 live 会话的投影快照（live store 派生；按创建序）。
-     * @returns 每个 live 会话一条 SessionSnapshot。
-     */
-    list(): SessionSnapshot[];
-    /**
-     * 某会话的 agent 状态（无 live agent 视为 idle）。
-     * @param id - 会话 id。
-     * @returns 'running' 或 'idle'。
-     */
-    statusOf(id: SessionId): 'idle' | 'running';
-}
