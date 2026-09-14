@@ -37,6 +37,7 @@ import { join, resolve } from 'node:path'
 import type { ReadStream, WriteStream } from 'node:tty'
 import type { Context, Events } from '@deepseek-ai/cordis'
 import { Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { assistantStreamHasVisibleText } from '@deepseek-ai/dsh-llm'
 import type { AssistantStreamRecord, ToolCallId, TokenUsage } from '@deepseek-ai/dsh-llm'
 import { installModelSelection, type Agent, type AgentHandle, type ModelSelection, type ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 // 空类型导入引入 Context 上 agentDefaultModel 服务的声明合并（headless 同款）。
@@ -3371,6 +3372,13 @@ export class TuiApp {
         // 0.1.5：text/reasoning delta 批量打包进 attempt（压缩流记录展开）。
         // 注意 attempt 只在报错/中断路径出现——正常回合的正文经
         // assistant/message 内嵌 stream 到达（见该分支的回退渲染，#58）。
+        // 带正文的 attempt 即「未成功的尝试」：它会与随后那次成功尝试的正文在
+        // append-only scrollback 里紧邻落地，提交后不可撤回——不标记时两段会被
+        // 读成一段连续答案（#58 余项）。只在确有正文时标记：纯推理/空流不产生
+        // 读者可见内容，标记反而误导。判据走官方 record-level reader（不物化）。
+        if (assistantStreamHasVisibleText(event.data.stream)) {
+          this.blockWriter.push('\n⟳ 未完成的尝试\n')
+        }
         this.ingestAssistantStream(event.data.stream)
         break
       }

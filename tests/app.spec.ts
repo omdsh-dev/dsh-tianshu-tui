@@ -2746,6 +2746,90 @@ describe('TuiApp 流式提交', () => {
     await app.dispose()
   })
 
+  it('失败尝试带正文 → 正文前落「未完成的尝试」标记（#58 余项）', async () => {
+    // 宿主成功回合落 assistant/message、失败与重试回合落 assistant/attempt——
+    // 带正文的 attempt 即「未成功的尝试」。它与随后的成功正文在 append-only
+    // scrollback 里紧邻落地（提交后不可撤回），不标记会被读成一段连续答案。
+    const ctx = makeCtx()
+    const agent = makeAgent('stream-attempt-marker')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin(), theme: 'paper' })
+    await app.attach()
+    const id = app.sessionId
+    if (id === null) throw new Error('no active session')
+    const emit = sessionEventBus(ctx)
+    emit(id, { seq: 1, time: 1, type: 'turn/start', data: { turn: 1 } })
+    emit(id, { seq: 2, time: 2, type: 'assistant/attempt', data: { turn: 1, step: 0, stream: [{ type: 'chunk', time: 2, chunk: { type: 'text-delta', text: '甲残' } }] } })
+    emit(id, {
+      seq: 3, time: 3, type: 'assistant/message',
+      data: {
+        turn: 1, step: 0,
+        message: { role: 'assistant', content: [{ type: 'text', text: '乙全' }] },
+        stream: [{ type: 'chunk', time: 3, chunk: { type: 'text-delta', text: '乙全' } }],
+      },
+    })
+    await new Promise(resolve => setImmediate(resolve))
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    const plain = written.replace(/\x1B\[[0-9;?]*[ -/]*[@-~]/g, '')
+    expect(plain).toContain('⟳ 未完成的尝试')
+    // 标记落在该次尝试的正文之前
+    expect(plain.indexOf('⟳ 未完成的尝试')).toBeLessThan(plain.indexOf('甲残'))
+    await app.dispose()
+  })
+
+  it('attempt 只有推理（无正文）→ 不落标记', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('stream-attempt-reason')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin(), theme: 'paper' })
+    await app.attach()
+    const id = app.sessionId
+    if (id === null) throw new Error('no active session')
+    const emit = sessionEventBus(ctx)
+    emit(id, { seq: 1, time: 1, type: 'turn/start', data: { turn: 1 } })
+    emit(id, { seq: 2, time: 2, type: 'assistant/attempt', data: { turn: 1, step: 0, stream: [{ type: 'chunk', time: 2, chunk: { type: 'reasoning-delta', text: '只想' } }] } })
+    await new Promise(resolve => setImmediate(resolve))
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('⟳ 未完成的尝试')
+    await app.dispose()
+  })
+
+  it('正常回合（只有 message）→ 不落标记', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('stream-no-marker')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin(), theme: 'paper' })
+    await app.attach()
+    const id = app.sessionId
+    if (id === null) throw new Error('no active session')
+    const emit = sessionEventBus(ctx)
+    emit(id, { seq: 1, time: 1, type: 'turn/start', data: { turn: 1 } })
+    emit(id, {
+      seq: 2, time: 2, type: 'assistant/message',
+      data: {
+        turn: 1, step: 0,
+        message: { role: 'assistant', content: [{ type: 'text', text: '正常' }] },
+        stream: [{ type: 'chunk', time: 2, chunk: { type: 'text-delta', text: '正常' } }],
+      },
+    })
+    await new Promise(resolve => setImmediate(resolve))
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('⟳ 未完成的尝试')
+    await app.dispose()
+  })
+
   it('aborted turn 的流式残文不进 scrollback', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('stream-2')

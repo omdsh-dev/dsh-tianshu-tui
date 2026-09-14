@@ -24,7 +24,14 @@
 - **改法** — 删除 `SessionManager` 类与 `SessionSnapshot` 接口（连同 `app.ts` 的字段/构造/import）。`resumeModelSelection` 原地保留，不改名不改路径——避免把「清死代码」扩大成模块重组。`tests/session-manager.spec.ts` 由「测已删的类」改写为「测活函数」，补上它此前缺失的 4 例（持久化路由优先且不调 fallback / reasoningEffort 条件展开 / 无 header 落 fallback）。清掉 `app.spec.ts` 里指向 `SessionManager.list` 的过时 mock 注释；SOURCE-MAP 与 architecture 中英双版的条目描述同步。
 - 多会话 tab 栏若将来落地，应由真实消费方驱动设计，而不是复活这套快照层。
 
-验证：typecheck 0；全量 2730/2730（`--no-file-parallelism`）。
+### 改进：失败尝试的正文加标记
+
+- **问题** — 宿主成功回合落 `assistant/message`、失败与重试回合落 `assistant/attempt`，同一 `{turn,step}` 的 attempt 与 message 来自**不同 attempt**（见上文）。因此两段正文会在 append-only 的 scrollback 里**紧邻落地**：探针实测短失败尝试与成功正文拼成 `甲残乙全`（相邻、零分隔），长失败尝试同样按序拼接。用户会把两段读成一段连续答案。
+- **为什么不能「撤回」** — `BlockStreamWriter` 的实参是 `{ minChars: 60, maxChars: 200, idleMs: 180 }`（`src/ui/app.ts:848`），`idleMs` 一到就自动 flush，`onBlock` 经 `streamRenderer` 直接 `commitToScrollback`——一旦提交即不可撤回。探针同时证伪了一个想当然的基线：abort 场景下已提交的残文（120 字符）在 `abort@30ms`（仍在缓冲）与 `abort@250ms`（已 idle flush）两种时机**都留在输出里**——「abort 会丢弃残文」只对未触发 emit 的极短内容成立，`handleAbort` 的 `discard()` 清不掉已提交的部分。
+- **改法** — 既然撤回不可行，就让失败的尝试**可辨识**：`assistant/attempt` 分支在其正文前落一行 `⟳ 未完成的尝试`。判据用官方 record-level reader `assistantStreamHasVisibleText`（只认 text-delta 与 text block，**不认 reasoning**，不物化 chunk 序列），纯推理或空流的 attempt 不标记——它们本就没有读者可见内容。多次重试会落多个标记，用户因此能看到重试次数。
+- 回归测试 3 例（`tests/app.spec.ts`）：带正文的 attempt 落标记且标记在该次正文之前 / 纯推理 attempt 不落标记 / 正常回合（只有 message）不落标记。
+
+验证：typecheck 0；全量 2733/2733（`--no-file-parallelism`）。
 
 ## [0.1.2-rc.31] - 2026-09-14
 
