@@ -12,9 +12,6 @@
 **dsh-tianshu-tui** (`@huiliyi37/dsh-tianshu-tui`) is the interactive terminal UI plugin for the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). The render core is a self-built minimal ANSI engine (evolved from the author's own open-source [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui), Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)), keeping rendering lightweight and non-intrusive. The UI is a pure presentation layer: every piece of agent state arrives through the session event stream. On top of it, the plugin adds harness-level engineering niceties such as image & vision bridging, smart code retrieval, and memory with cross-session recall.
 
 
-> [!WARNING]
-> **Ecosystem boundary**: this plugin belongs to the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) ecosystem (`@deepseek-ai/*` scope) — its peerDependencies and imports all point at `@deepseek-ai/*`. **Do not assemble it into an oh-my-tianshu (`@huiliyi37` scope, CLI `@huiliyi37/dsh-tianshu`) tui profile.** oh-my-tianshu ships its own official TUI, `@huiliyi37/dsh-tui`: the two share 109 of 117 TUI source files but live in different ecosystems. Mixing them makes the plugin resolve `@deepseek-ai/*` at runtime through stale symlinks under `~/.dsh/profiles/node_modules` pointing at the globally installed official dsh — a fragile cross-ecosystem coupling.
-
 ## Documentation
 
 | Doc | What it covers |
@@ -97,28 +94,6 @@ DSH_HOME=/tmp/dsh-tianshu pnpm dlx @deepseek-ai/dsh --profile tui
 
 Do not run tsdown for this package from the DeepSeek Harness workspace root: it rewrites imports to unpublished `@deepseek-ai/dsh-root`, and loading fails.
 
-## Coexisting with other distributions
-
-This plugin runs on top of the official DeepSeek Harness (`@deepseek-ai/dsh`) and uses the
-official home `~/.dsh`. The standalone integrated distribution **oh-my-tianshu** (formerly
-tianshu-public, `@huiliyi37/dsh-tianshu`, a full harness with its own `tianshu` CLI) is a
-separate distribution line that uses its own `$DSH_HOME` (`~/.dsh-tianshu` once the
-default-home isolation lands) — the two homes are isolated, so both can be **installed side
-by side without conflicts** (sessions / profiles / settings stay separate). To coexist, set
-`export DSH_HOME=~/.dsh-tianshu` on the tianshu side.
-
-**Naming memo (avoid confusion):**
-
-| Name | What it is |
-|---|---|
-| `dsh-tianshu-tui` (this plugin) | The TUI plugin for the official dsh (this repo) |
-| `oh-my-tianshu` / `@huiliyi37/oh-my-tianshu` (formerly tianshu-public) | Standalone integrated distribution with its own CLI (`oh-my-tianshu`) |
-| `Tianshu-Tui` (upstream) | Apache-2.0 source of this plugin's render core |
-
-> Renamed on 2026-08-16: the former `@huiliyi37/dsh-tianshu` (command `tianshu`) is now
-> uniformly `@huiliyi37/oh-my-tianshu` (command `oh-my-tianshu`), matching the repo name;
-> the old package is deprecated — migrate your install.
-
 The companion vision plugin lives in `vision-ask/` if you need image re-interrogation.
 
 ## Release notes
@@ -140,7 +115,7 @@ Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@1.0.0-rc.1`](https://www.npmj
 
 
 
-**0.1.2-rc.23 (2026-08-27)**: LSP trio aligned to the tianshu-public 0.6.0 official seam line (single `lsp` tool with four operations + local provider defaulting to tsserver), capability-gated diagnostic source prevents `/lsp` panel regression; host peers aligned to `^0.1.1-rc.2`.
+**0.1.2-rc.23 (2026-08-27)**: LSP trio aligned to the upstream 0.6.0 official seam line (single `lsp` tool with four operations + local provider defaulting to tsserver), capability-gated diagnostic source prevents `/lsp` panel regression; host peers aligned to `^0.1.1-rc.2`.
 
 **0.1.2-rc.22 (2026-08-27)**: LSP model tool surface shipped bundled first version (companion plugin auto-inserted; remove the legacy community plugin).
 

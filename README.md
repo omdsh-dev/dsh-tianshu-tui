@@ -95,26 +95,6 @@ DSH_HOME=/tmp/dsh-tianshu pnpm dlx @deepseek-ai/dsh --profile tui
 
 不要在 DeepSeek Harness 工作区根目录对本包跑 tsdown：会把未发布的 `@deepseek-ai/dsh-root` 写进 bundle，加载必失败。
 
-## 与其他发行版共存
-
-本插件运行在官方 DeepSeek Harness（`@deepseek-ai/dsh`）之上，数据 home 为 `~/.dsh`。
-独立集成发行 **oh-my-tianshu**（原 tianshu-public，`@huiliyi37/dsh-tianshu`，自带 `tianshu`
-CLI 的完整 harness）是另一条独立发行线，使用独立的 `$DSH_HOME`（默认值独立化落地后为
-`~/.dsh-tianshu`）——两套系统 home 隔离，**可同时安装、互不干扰**（会话 / profile /
-settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tianshu` 即可。
-
-**命名备忘（防止混淆）**：
-
-| 名字 | 是什么 |
-|---|---|
-| `dsh-tianshu-tui`（本插件） | 官方 dsh 的 TUI 插件（本仓库） |
-| `oh-my-tianshu` / `@huiliyi37/oh-my-tianshu`（原 tianshu-public） | 独立集成发行，自带 CLI（命令 `oh-my-tianshu`） |
-| `Tianshu-Tui`（上游） | 本插件渲染核心的 Apache-2.0 来源（天枢） |
-
-> 2026-08-16 已改名：原 `@huiliyi37/dsh-tianshu`（命令 `tianshu`）统一为
-> `@huiliyi37/oh-my-tianshu`（命令 `oh-my-tianshu`），与仓库名一致；旧包已
-> deprecate，请迁移安装。
-
 需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`。LSP 模型工具面（`lsp_goto_definition` / `lsp_find_references` / `lsp_diagnostics`）已随本包内置（`@huiliyi37/dsh-lsp` 伴生插件，bundle patch 自动 insert）——装 TUI 一个包即得展示桥 + 模型工具面，二者共享同一 LSP server 集（不双份 spawn）。TUI 桥的诊断源探测顺序：内置伴生插件 `lsp` 服务（getDiagnostics 形状）→ 官方 `ctx.lsp` seam（deepseek-harness 的 dsh-lsp，经 query(getDiagnostics) 适配）→ 内置桥降级。⚠ 此前单独装过旧社区版（`github:omdsh-dev/dsh-lsp`）的用户请先 `plugin remove` 旧版再升级——新旧同时装配会重复注册同名模型工具。
 
 ## 更新说明
@@ -136,7 +116,7 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 
 
-**0.1.2-rc.23（2026-08-27）**：LSP 三件套对齐 tianshu-public 0.6.0 官方 seam 线（单 `lsp` 工具四操作 + 本地 provider 默认 tsserver），诊断源能力门控防 `/lsp` 面板退化；宿主 peer 对齐 `^0.1.1-rc.2`。
+**0.1.2-rc.23（2026-08-27）**：LSP 三件套对齐上游 0.6.0 官方 seam 线（单 `lsp` 工具四操作 + 本地 provider 默认 tsserver），诊断源能力门控防 `/lsp` 面板退化；宿主 peer 对齐 `^0.1.1-rc.2`。
 
 **0.1.2-rc.22（2026-08-27）**：LSP 模型工具面随包内置首版（伴生插件自动挂载，装 TUI 一个包即得展示桥 + 模型工具面；旧社区版请先移除）。
 
