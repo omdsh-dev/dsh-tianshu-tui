@@ -72,7 +72,7 @@ Pending interactions are explicit **state machines** (not scattered across rende
 - **QuestionController**: question → options → settlement; overlap protection; plan-review feedback mode.
 - **ApprovalController**: approval card y/N/a; always-approve local short-circuit; non-current-session delegation.
 - **BtwController**: background-ask lifecycle (Esc folds the answer into the scrollback).
-- **SessionManager**: create/fork/switch/resume.
+- **Resume routing** (`controllers/session-manager.ts`): on resuming an existing session the model comes from its persisted request header (survives restarts); only a session that never sent a request falls back to the current `agentDefaultModel`. Creating/forking/switching/resuming sessions is **not** here — that lives in `adapter/sessions.ts` (`forkSession`/`listSessions`/`loadHistory`) and `TuiApp.switchSession`.
 
 ## Overlay System
 

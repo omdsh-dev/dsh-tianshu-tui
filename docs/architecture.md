@@ -79,7 +79,10 @@ Transcript 视图(消息 / 工具 / 推理 / usage 折叠)
 - **ApprovalController**:审批卡决策梯度 y/p/t/a/n/f/esc(p 命令前缀白名单、f 拒绝附反馈);
   always-approve 本地短路;非当前会话委托。
 - **BtwController**:侧问生命周期(Esc 折叠答案入滚动区)。
-- **SessionManager**:新建/分叉/切换/恢复。
+- **resume 定路**(`controllers/session-manager.ts`):resume 一个既有会话时,模型以其
+  持久化的 request header 为准(跨重启续模);只有从未成功发起请求(无 header)的会话
+  才落 agentDefaultModel 当前选择。会话的新建/分叉/切换/恢复**不在此模块**——分别由
+  `adapter/sessions.ts`(`forkSession`/`listSessions`/`loadHistory`)与 `TuiApp.switchSession` 承担。
 
 键位仲裁也已动作化:`src/actions/` 的 ActionRegistry 持有全部内置键位动作(含 approval
 域梯度),`Ctrl+.` 键位表与 footer 提示从动作表同源投影(`actions/projections.ts`),
