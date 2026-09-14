@@ -14,9 +14,9 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { ToolCallId, ContentBlock } from '@deepseek-ai/dsh-llm'
-import { expandAssistantStream } from '@deepseek-ai/dsh-llm'
+import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
+import { foldAssistantStream, foldMessageContent } from './assistant-stream.js'
 
 /** One completed message row on the TUI surface. */
 export interface TranscriptMessage {
@@ -96,24 +96,6 @@ export function emptyTranscript(sessionId: SessionId): TranscriptView {
   return { sessionId, messages: [], streaming: undefined, tools: [], turn: -1, firstInTurnTime: undefined, seq: -1 }
 }
 
-/** Fold the text-bearing blocks of a message's content into one display string. */
-function foldText(content: readonly ContentBlock[]): string {
-  let out = ''
-  for (const block of content) {
-    if (block.type === 'text') out += block.text
-  }
-  return out
-}
-
-/** Fold the reasoning blocks of a message's content into one display string (kept apart from text). */
-function foldReasoning(content: readonly ContentBlock[]): string {
-  let out = ''
-  for (const block of content) {
-    if (block.type === 'reasoning') out += block.text
-  }
-  return out
-}
-
 /**
  * Fold one committed session event into the derived view. Returns a NEW view.
  * @param view - 折叠前的视图（不被就地修改）。
@@ -130,7 +112,7 @@ export function applyTranscriptEvent(view: TranscriptView, event: SessionEvent):
         kind: 'user',
         turn: view.turn,
         step: undefined,
-        text: foldText(event.data.content),
+        text: foldMessageContent(event.data.content).text,
         reasoning: '',
         event,
       }
@@ -143,31 +125,36 @@ export function applyTranscriptEvent(view: TranscriptView, event: SessionEvent):
       }
     }
     case 'assistant/attempt': {
-      // 0.1.5：逐 delta 的 assistant/chunk 改为批量 attempt（压缩流记录），
-      // 经官方 expandAssistantStream 展开后按同款语义折叠。
+      // 0.1.5：逐 delta 的 assistant/chunk 改为批量 attempt（压缩流记录）。
       const { turn, step } = event.data
       // Visible text and reasoning accumulate on separate lanes: mixing them
       // would leak the model's draft stream into the rendered answer.
       // A batch for a different step opens a fresh aggregation; same step accumulates.
-      let acc = base.streaming !== undefined && base.streaming.turn === turn && base.streaming.step === step
-        ? { ...base.streaming }
-        : { turn, step, text: '', reasoning: '' }
-      for (const { chunk } of expandAssistantStream(event.data.stream)) {
-        if (chunk.type === 'text-delta') acc = { ...acc, text: acc.text + chunk.text }
-        else if (chunk.type === 'reasoning-delta') acc = { ...acc, reasoning: acc.reasoning + chunk.text }
+      const prior = base.streaming !== undefined && base.streaming.turn === turn && base.streaming.step === step
+        ? base.streaming
+        : undefined
+      const folded = foldAssistantStream(event.data.stream)
+      return {
+        ...base,
+        streaming: {
+          turn,
+          step,
+          text: (prior?.text ?? '') + folded.text,
+          reasoning: (prior?.reasoning ?? '') + folded.reasoning,
+        },
       }
-      return { ...base, streaming: acc }
     }
     case 'assistant/message': {
       const { turn, step, message } = event.data
+      const folded = foldMessageContent(message.content)
       const row: TranscriptMessage = {
         seq: event.seq,
         time: event.time,
         kind: 'assistant',
         turn,
         step,
-        text: foldText(message.content),
-        reasoning: foldReasoning(message.content),
+        text: folded.text,
+        reasoning: folded.reasoning,
         event,
       }
       // The matching chunk stream is closed by its assembled message.

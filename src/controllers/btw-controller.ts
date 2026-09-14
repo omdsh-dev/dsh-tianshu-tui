@@ -26,7 +26,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { SessionId, SessionLogOffset, type SessionEvent } from '@deepseek-ai/dsh-session'
-import { expandAssistantStream } from '@deepseek-ai/dsh-llm'
+import { joinAssistantStreamText } from '@deepseek-ai/dsh-llm'
 import type { AgentHandle } from '@deepseek-ai/dsh-agent'
 import { controlsFromHandle } from '../adapter/send.js'
 import { joinPreset, presetJoinFacet } from '../adapter/preset-join.js'
@@ -161,11 +161,11 @@ export class BtwController {
     const buffer: string[] = []
     const feed = this.ctx.on('session/event', (owner: { id: SessionId }, event: SessionEvent) => {
       if (owner.id !== btwId) return
-      // 0.1.5：text delta 走批量 assistant/attempt（压缩流记录展开）
+      // 0.1.5：text delta 走批量 assistant/attempt。答案只要正文，用官方
+      // record-level reader（不物化 chunk 序列）——与「展开后拼 text-delta」
+      // 等价，语义归宿主 assistant-stream 单点维护（见 adapter/assistant-stream）。
       if (event.type === 'assistant/attempt') {
-        for (const { chunk } of expandAssistantStream(event.data.stream)) {
-          if (chunk.type === 'text-delta') buffer.push(chunk.text)
-        }
+        buffer.push(joinAssistantStreamText(event.data.stream))
       } else if (event.type === 'assistant/message') {
         const message = (event.data as { message?: { content?: ReadonlyArray<{ type: string; text?: string }> } }).message
         for (const block of message?.content ?? []) {

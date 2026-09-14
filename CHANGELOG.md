@@ -12,7 +12,13 @@
 - **btw 同族修复** — `/btw` 答案收集原为「流式 buffer 非空则整段取 buffer，否则回退 message 正文」的二选一，同样会在重试路径截断；改为按事件顺序统一累积两个来源。
 - 回归测试：重试路径正文渲染（`tests/app.spec.ts`，替换原「不重复补推」用例——那条 `not.toContain('尾巴')` 实际把「丢正文」固化为预期）、btw 重试按序拼接（`tests/btw-controller.spec.ts`）。
 
-验证：typecheck 0；全量 2719/2719（`--no-file-parallelism`）。
+### 结构：assistant 流语义合并为一处
+
+- **问题** — 宿主 0.1.5 的助手正文有两条落盘路径（正常回合 `assistant/message`、失败/中断/重试回合 `assistant/attempt`），其读取语义——展开压缩流、正文与推理分轨、从内容块抽取——此前在四处各自实现：`adapter/transcript.ts`（attempt 折叠 + 私有 `foldText`/`foldReasoning`）、`ui/app.ts`（实时渲染）、`controllers/btw-controller.ts`（答案收集）、`format/export.ts`（私有 `messageText`）。同一宿主行为变更需四处联动，rc.30 的 `chunk → attempt` 改批即漏改过；上面那条正文丢失缺陷的修复也曾两处各写一版且都错。
+- **改法** — 新增 `adapter/assistant-stream.ts` 承载唯一实现：`assistantDeltas`（压缩流 → 带原始时间戳的分轨增量）、`foldAssistantStream`（分轨折叠，正文与推理不混轨）、`foldMessageContent`（内容块路径同口径）。transcript 删 `foldText`/`foldReasoning` 改调共享层；app 的 `ingestAssistantStream` 改走 `assistantDeltas`（签名由 `Parameters<typeof expandAssistantStream>[0][number]` 收窄为 `readonly AssistantStreamRecord[]`）；export 删 `messageText`。btw 只要正文，改用官方 `joinAssistantStreamText`——record-level reader 不物化 chunk 序列，语义与「展开后拼 text-delta」等价。
+- 新增 `tests/assistant-stream.spec.ts`（10 例）：覆盖压缩 run 形态（`text-chunks` / `reasoning-chunks`，宿主 `AssistantStreamAccumulator` 落盘的主流形态——此前 TUI 各测试只构造过原始 `chunk`）与原始 chunk 形态，并断言「内容块路径与压缩流路径同口径」。
+
+验证：typecheck 0；全量 2729/2729（`--no-file-parallelism`）。
 
 ## [0.1.2-rc.31] - 2026-09-14
 

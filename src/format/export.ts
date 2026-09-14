@@ -7,6 +7,7 @@
 
 import type { ContentBlock, Message } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { foldMessageContent } from '../adapter/assistant-stream.js'
 
 /** 导出元信息（头块）。 */
 export interface SessionExportMeta {
@@ -18,26 +19,6 @@ export interface SessionExportMeta {
 
 /** 工具结果文本截断上限。 */
 const TOOL_RESULT_CAP = 5000
-
-/** 抽取消息的文本块（text + reasoning 分离）。 */
-function messageText(message: Message): { text: string; reasoning: string } {
-  let text = ''
-  let reasoning = ''
-  for (const block of message.content) {
-    switch (block.type) {
-      case 'text':
-        text += block.text
-        break
-      case 'reasoning':
-        reasoning += block.text
-        break
-      default:
-        // tool-call 等块由调用方单独处理
-        break
-    }
-  }
-  return { text, reasoning }
-}
 
 /** 截断超长文本（保留头部 + 尾部 + 标记）。 */
 function truncate(text: string, cap: number): string {
@@ -71,7 +52,7 @@ export function renderSessionExport(events: readonly SessionEvent[], meta: Sessi
   for (const event of events) {
     switch (event.type) {
       case 'user/message': {
-        const { text } = messageText(event.data)
+        const { text } = foldMessageContent(event.data.content)
         if (text !== '') {
           lines.push('## 用户', '', text, '')
           count++
@@ -79,7 +60,7 @@ export function renderSessionExport(events: readonly SessionEvent[], meta: Sessi
         break
       }
       case 'assistant/message': {
-        const { text, reasoning } = messageText(event.data.message)
+        const { text, reasoning } = foldMessageContent(event.data.message.content)
         const toolCalls = event.data.message.content
           .filter(block => block.type === 'tool-call')
           .map(block => `${block.name}(${block.arguments})`)

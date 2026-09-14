@@ -37,14 +37,14 @@ import { join, resolve } from 'node:path'
 import type { ReadStream, WriteStream } from 'node:tty'
 import type { Context, Events } from '@deepseek-ai/cordis'
 import { Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
-import type { ToolCallId, TokenUsage } from '@deepseek-ai/dsh-llm'
-import { expandAssistantStream } from '@deepseek-ai/dsh-llm'
+import type { AssistantStreamRecord, ToolCallId, TokenUsage } from '@deepseek-ai/dsh-llm'
 import { installModelSelection, type Agent, type AgentHandle, type ModelSelection, type ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 // 空类型导入引入 Context 上 agentDefaultModel 服务的声明合并（headless 同款）。
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 // 空类型导入引入 'user-questions/request' waterfall 事件的声明合并（rc.1 wire）。
 import type {} from '@deepseek-ai/dsh-user-questions'
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions'
+import { assistantDeltas } from '../adapter/assistant-stream.js'
 import { CommitEngine } from '../engine/commit-engine.js'
 import { ANSI, color, osc52Clipboard } from '../engine/ansi.js'
 import {
@@ -3344,20 +3344,19 @@ export class TuiApp {
    * assistant/message 内嵌流的回退渲染共用本管线（#58）。
    * @returns 本次是否摄入过 delta（流为空时调用方需折 message.content 兜底）。
    */
-  private ingestAssistantStream(stream: ReadonlyArray<Parameters<typeof expandAssistantStream>[0][number]>): boolean {
-    let sawDelta = false
-    for (const { time: chunkTime, chunk } of expandAssistantStream(stream)) {
-      sawDelta = true
-      if (chunk.type === 'text-delta') {
+  private ingestAssistantStream(stream: readonly AssistantStreamRecord[]): boolean {
+    const deltas = assistantDeltas(stream)
+    for (const delta of deltas) {
+      if (delta.kind === 'text') {
         this.commitReasoningBlock()
-        this.blockWriter.push(chunk.text)
-      } else if (chunk.type === 'reasoning-delta') {
-        if (this.reasoningText === '') this.reasoningStartedAt = chunkTime
-        this.reasoningText += chunk.text
+        this.blockWriter.push(delta.text)
+      } else {
+        if (this.reasoningText === '') this.reasoningStartedAt = delta.time
+        this.reasoningText += delta.text
         this.renderBatcher.schedule()
       }
     }
-    return sawDelta
+    return deltas.length > 0
   }
 
   /**

@@ -27,6 +27,7 @@
 | src/activity-status.ts | activity-status.ts | modified |
 | src/activity-store.ts | activity-store.ts | modified |
 | src/adapter/agent-scope-service.ts | — | new（isolate 服务优先从 agent 预设面读：compact / planMode / workflowEngine） |
+| src/adapter/assistant-stream.ts | — | new（TUI 视角 assistant 流语义层：压缩流展开为分轨增量 / 分轨折叠 / 内容块抽取——transcript 折叠·app 实时渲染·btw 答案收集·export 转录四处共用，宿主 attempt/message 双路径语义单点维护） |
 | src/adapter/fork-agent.ts | — | new（/fork /branch：agents.create({ seed, meta }) 铸 child，避免 sessions.fork 后再 resume live 会话） |
 | src/adapter/live.ts | — | new |
 | src/adapter/preset-join.ts | — | new（create mount / resume resolvePresetId / child composeFrom，setup 里加入官方预设面） |
