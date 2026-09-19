@@ -293,7 +293,7 @@ npm test
 
 ## 许可与来源
 
-Apache-2.0。终端渲染引擎从 [天枢 Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) 演进而来（Apache-2.0）；逐文件来源与修改声明见 [SOURCE-MAP.md](SOURCE-MAP.md) 与 [NOTICE](NOTICE)。
+Apache-2.0。终端渲染引擎从 [天枢 Tianshu-harness](https://github.com/huiliyi37/Tianshu-harness) 演进而来（Apache-2.0）；逐文件来源与修改声明见 [SOURCE-MAP.md](SOURCE-MAP.md) 与 [NOTICE](NOTICE)。
 
 ## 友情链接
 
