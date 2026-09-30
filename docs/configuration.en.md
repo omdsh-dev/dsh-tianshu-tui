@@ -23,7 +23,7 @@ All fields are optional and injected by whoever assembles the plugin:
 
 ### Assembling agent presets (`/preset`)
 
-This package's `cordis.patch.yml` inserts official `agent-presets` (`default: standard`) and disables the host agent-plane rows that the shipped `standard` preset remounts. `plugin add` of this package also installs `@deepseek-ai/dsh-agent-presets@0.1.1-rc.2`. The command is `/preset`; there is no `/presets`. New sessions `mount` in `setup`; a blank `/preset <id>` uses official `recompose`.
+This package's `cordis.patch.yml` inserts the official `agent-preset-registry` (`default: standard`) plus four `dsh-agent-preset` declaration rows (standard/ptc/minimal/cordis), and disables the host agent-plane rows that the shipped `standard` preset remounts. `plugin add` of this package also installs `@deepseek-ai/dsh-agent-preset-registry` and `@deepseek-ai/dsh-agent-preset` (pinned `0.2.0-rc.1`). The command is `/preset`; there is no `/presets`. New sessions `mount` in `setup`; a blank `/preset <id>` uses official `recompose`.
 
 ## Environment Variables
 

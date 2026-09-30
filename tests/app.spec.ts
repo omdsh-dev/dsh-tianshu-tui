@@ -2231,9 +2231,10 @@ describe('TuiApp Phase 9d 流利度装配', () => {
           step: 0,
           message: {
             id: `m-${r.callId}`,
-            role: 'user',
+            role: 'tool',
             source: { kind: 'tool', callId: r.callId },
-            content: [{ type: 'tool-result', toolCallId: r.callId, content: [{ type: 'text', text: r.text }] }],
+            toolCallId: r.callId,
+            content: [{ type: 'text', text: r.text }],
           },
         },
       })
@@ -2294,9 +2295,10 @@ describe('TuiApp Phase 9d 流利度装配', () => {
           step: 0,
           message: {
             id: 'm-c1',
-            role: 'user',
+            role: 'tool',
             source: { kind: 'tool', callId: 'c1' },
-            content: [{ type: 'tool-result', toolCallId: 'c1', content: [{ type: 'text', text: 'x' }] }],
+            toolCallId: 'c1',
+            content: [{ type: 'text', text: 'x' }],
           },
         },
       })
@@ -3545,9 +3547,9 @@ describe('TuiApp 投影层接线（turn-summary 摘要行 + /status 会话段）
   function feedToolTurn(bus: ReturnType<typeof sessionEventBus>, id: SessionId): void {
     bus(id, { seq: 1, time: 1000, type: 'turn/start', data: { turn: 1 } })
     bus(id, { seq: 2, time: 1100, type: 'tool/call', data: { callId: 'c1', name: 'read_file', arguments: '{}', turn: 1, step: 0 } })
-    bus(id, { seq: 3, time: 1200, type: 'tool/result', data: { turn: 1, step: 0, message: { id: 'm-c1', role: 'user', source: { kind: 'tool', callId: 'c1' }, content: [{ type: 'tool-result', toolCallId: 'c1', content: [{ type: 'text', text: 'ok' }] }] } } })
+    bus(id, { seq: 3, time: 1200, type: 'tool/result', data: { turn: 1, step: 0, message: { id: 'm-c1', role: 'tool', source: { kind: 'tool', callId: 'c1' }, toolCallId: 'c1', content: [{ type: 'text', text: 'ok' }] } } })
     bus(id, { seq: 4, time: 1300, type: 'tool/call', data: { callId: 'c2', name: 'edit_file', arguments: '{}', turn: 1, step: 1 } })
-    bus(id, { seq: 5, time: 2300, type: 'tool/result', data: { turn: 1, step: 1, message: { id: 'm-c2', role: 'user', source: { kind: 'tool', callId: 'c2' }, content: [{ type: 'tool-result', toolCallId: 'c2', content: [{ type: 'text', text: 'done' }] }] } } })
+    bus(id, { seq: 5, time: 2300, type: 'tool/result', data: { turn: 1, step: 1, message: { id: 'm-c2', role: 'tool', source: { kind: 'tool', callId: 'c2' }, toolCallId: 'c2', content: [{ type: 'text', text: 'done' }] } } })
     bus(id, { seq: 6, time: 2400, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
   }
 
@@ -5115,7 +5117,7 @@ describe('TuiApp 会话事件流防御分支', () => {
       seq: 1,
       time: 2,
       data: {
-        message: { content: [{ type: 'tool-result', content: [{ type: 'image' }] }], source: { callId: 'c1' } },
+        message: { content: [{ type: 'image' }], source: { kind: 'tool', callId: 'c1' }, toolCallId: 'c1' },
       },
     })
     // 未知 callId：findLast 遍历不命中 → ?? 'tool' 降级
@@ -5124,7 +5126,7 @@ describe('TuiApp 会话事件流防御分支', () => {
       seq: 2,
       time: 3,
       data: {
-        message: { content: [{ type: 'tool-result', content: [{ type: 'text', text: 'abc' }] }], source: { callId: 'ghost' } },
+        message: { content: [{ type: 'text', text: 'abc' }], source: { kind: 'tool', callId: 'ghost' }, toolCallId: 'ghost' },
       },
     })
     await new Promise(resolve => setImmediate(resolve))
@@ -5179,8 +5181,9 @@ describe('TuiApp 结算卡与推理通道', () => {
         turn: 1,
         step: 0,
         message: {
-          content: [{ type: 'tool-result', content: [{ type: 'text', text: 'file.txt\nREADME.md' }] }],
-          source: { callId: 'settle-1' },
+          content: [{ type: 'text', text: 'file.txt\nREADME.md' }],
+          source: { kind: 'tool', callId: 'settle-1' },
+          toolCallId: 'settle-1',
         },
       },
     })
@@ -5223,8 +5226,9 @@ describe('TuiApp 结算卡与推理通道', () => {
         turn: 1,
         step: 0,
         message: {
-          content: [{ type: 'tool-result', content: [{ type: 'text', text: '模型面 diff 文本' }] }],
-          source: { callId: 'diff-1' },
+          content: [{ type: 'text', text: '模型面 diff 文本' }],
+          source: { kind: 'tool', callId: 'diff-1' },
+          toolCallId: 'diff-1',
         },
       },
     })

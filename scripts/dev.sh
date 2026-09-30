@@ -14,7 +14,7 @@ CLI="$ROOT/vendor/dsh-runtime/node_modules/@deepseek-ai/dsh/lib/bin.js"
 if [ ! -f "$CLI" ]; then
   echo "缺少 vendor/dsh-runtime（官方 CLI 依赖树）。重建："
   echo "  mkdir -p vendor && cp -R ~/.npm/_npx/*/node_modules vendor/dsh-runtime"
-  echo "（npx -y @deepseek-ai/dsh 跑过一次后缓存即存在）"
+  echo "（npx -y @deepseek-ai/dsh@next 跑过一次后缓存即存在）"
   exit 1
 fi
 
@@ -28,7 +28,7 @@ fi
 
 if [ ! -f "$PROFILE_DIR/package.json" ]; then
   echo "首次运行：装配 profile tui（dsh-base + 本插件 link: 本仓库）..."
-  node "$CLI" plugin --profile tui add "@deepseek-ai/dsh-base@0.1.1-rc.2" "link:$ROOT"
+  node "$CLI" plugin --profile tui add "@deepseek-ai/dsh-base@0.2.0-rc.1" "link:$ROOT"
 fi
 
 exec node "$CLI" --profile tui "$@"

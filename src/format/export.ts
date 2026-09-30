@@ -26,10 +26,9 @@ function truncate(text: string, cap: number): string {
   return `${text.slice(0, cap)}\n…+${text.length - cap} 字符`
 }
 
-/** 渲染一条工具结果消息（ToolResultMessage 的 content 是 ToolResultBlock 元组）。 */
+/** 渲染一条工具结果消息（0.2.0 起 ToolResultMessage 的 content 即平铺内容块）。 */
 function renderToolResult(message: Message): string {
-  const blocks = message.content.flatMap(block => block.type === 'tool-result' ? block.content : [])
-  const text = blocks
+  const text = message.content
     .filter((block): block is ContentBlock & { type: 'text' } => block.type === 'text')
     .map(block => block.text)
     .join('')

@@ -37,7 +37,8 @@ if ! command -v pnpm >/dev/null 2>&1; then
 fi
 
 # 3. 官方 CLI（经 pnpm dlx，绕过 npm 11 的 OOM）
-DSH="pnpm dlx @deepseek-ai/dsh"
+# 0.2.0 线：peer 依赖 ^0.2.0-rc.1——npm `latest` 仍是 0.1.7 线，必须显式 @next。
+DSH="pnpm dlx @deepseek-ai/dsh@next"
 
 say "安装官方 dsh CLI（pnpm，registry=${REGISTRY}）"
 if ! $DSH --version >/dev/null 2>&1; then
@@ -46,7 +47,24 @@ fi
 
 # 4. 装配 tui 插件（幂等：重复执行会覆盖更新到最新）
 say "装配 tui 插件（@huiliyi37/dsh-tianshu-tui）"
-$DSH plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+if ! $DSH plugin --profile tui add @huiliyi37/dsh-tianshu-tui; then
+  # pnpm ≥ 11.7 对未裁决的原生构建 exit 1（0.2.0 宿主树含 node-pty 等）：
+  # 把 profile 生成的 pnpm-workspace.yaml 里 allowBuilds 占位填掉再重试一次。
+  # dsh-subprocess-local 保留 true（只 chmod node-pty 预编译 helper），其余 false。
+  WS="${DSH_HOME:-$HOME/.dsh}/profiles/tui/pnpm-workspace.yaml"
+  if [ -f "$WS" ] && grep -q "set this to true or false" "$WS"; then
+    say "检测到未裁决的原生构建（pnpm ≥ 11.7），写入 allowBuilds 后重试"
+    sed -i.bak \
+      -e "s|^\(  '@deepseek-ai/dsh-subprocess-local'\): set this to true or false|\1: true|" \
+      -e "s|^\(  '[^']*'\): set this to true or false|\1: false|" \
+      "$WS"
+    # 首败可能留下「dep 已装但 bundle 未登记」的半截状态：先 remove 再 add。
+    $DSH plugin --profile tui remove @huiliyi37/dsh-tianshu-tui || true
+    $DSH plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+  else
+    die "插件装配失败（详见上方输出）"
+  fi
+fi
 
 # 5. 启动
 if [ "${1:-}" = "--no-launch" ]; then

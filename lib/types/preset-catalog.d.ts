@@ -1,9 +1,9 @@
 /**
  * 官方 shipped 预设的展示目录：短名、能力、工具集。
  *
- * 花名册 list() 已有 preset.yml 的 name/description；本表补「工具集 + 能力」
- * 给 /preset 列表与 footer/顶栏短名。id 对齐 CLI
- * apps/cli/config/agent-presets/{standard,ptc,minimal,cordis}（rc.1 起 code → ptc）。
+ * 花名册 list() 已有声明行的 name/description；本表补「工具集 + 能力」
+ * 给 /preset 列表与 footer/顶栏短名。id 对齐本包 cordis.patch.yml 的
+ * preset-{standard,ptc,minimal,cordis} 声明行（与官方 web-app 0.2.0 预设同源）。
  *
  * @module @huiliyi37/dsh-tianshu-tui/preset-catalog
  */

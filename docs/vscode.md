@@ -9,7 +9,7 @@ VS Code 扩展;本文给出推荐的终端配置与常见问题。
 2. 在 VS Code 内置终端(Terminal → New Terminal)运行:
 
 ```sh
-npx -y @deepseek-ai/dsh --profile tui
+npx -y @deepseek-ai/dsh@next --profile tui
 ```
 
 ## 推荐终端设置

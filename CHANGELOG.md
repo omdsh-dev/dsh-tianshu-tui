@@ -3,6 +3,23 @@
 版本更新记录。安装与当前版本见 [README](README.md)；完整历史在此。
 `/changelog` 在 TUI 内查看（默认当前版本，`/changelog all` 全部，`/changelog N` 最近 N 版）。
 
+## [1.0.0-rc.2] - 2026-09-30
+
+宿主线上到 0.2.0（官方 `next` 已切 `0.2.0-rc.1`，`latest` 仍停 0.1.7 线——安装命令须显式 `@next`）。
+
+### 宿主 0.2.0 线适配
+
+- **依赖钉线** — 全部 `@deepseek-ai/dsh-*` peer/dev 依赖 `^0.1.5-rc.x → ^0.2.0-rc.1`，cordis `^4.0.2 → ^4.0.4`（include/loader/timer 随行）；`dsh-settings-file`、`dsh-code-runtime`、`dsh-agent-spine-demo` 无 0.2.0 发布，撤出依赖线
+- **消息模型重设计** — 每条消息携带 `id`/`role`/`source`；工具结果从嵌套 `tool-result` 内容块改为一等 `ToolResultMessage`（role `'tool'`，`toolCallId`/`isError` 上提到消息级）：`toolResultText`（render.ts）、transcript 配对、export、app 结算卡四处同步改读平铺 content
+- **agent 预设新架构** — `dsh-agent-presets`（文件根花名册）官方退场，改挂 `dsh-agent-preset-registry` 注册表 + 四条 `dsh-agent-preset` 声明行（standard/ptc/minimal/cordis，与官方 web-app 0.2.0 预设逐字同源）；`agentPresets` 服务名与 `mount`/`composeFrom`/`recompose`/`composedPreset` 接缝不变，`preset-join.ts` 鸭式面零改动命中
+- **bundle patch 禁用清单对齐 web-app 0.2.0** — 新增 `tool-plugin-manager`、`command-goal`、`workflow-ptc`（取代已消失的 `workflow-worker-thread`）；移除 base 已不存在的 `tool-str-replace-editor`
+- **消息源词汇** — `source.kind: 'plugin'` 退场：runtime-context 快照改识别 `kind: 'runtime-context'`（旧日志的 `plugin` 形态 replay 兼容保留）；vision-ask 的视觉请求消息改用 `{ kind: 'user' }`
+- **会话日志格式 v4** — `SESSION_FORMAT_VERSION = 4`（header 必带 `isSeeded`/`delegationDepth`）；测试夹具同步
+- **LSP 三件套升 0.8.0 线** — `@huiliyi37/*` `0.6.0 → 0.8.0`，闭包新增 `dsh-type-meta`、`dsh-user-approval`、fork 版 `cordis-plugin-include/loader`（npm 对 `latest` 仍停 0.1.7 线兼容），`dsh-attachment` 不再被需要而移出
+- **组合测试重构** — spine-demo mega-bundle 角色由单包直挂取代（`dsh-session` + `dsh-agent` + `dsh-agent-loop` + `dsh-system-prompt` + `dsh-tools` + `dsh-session-projection`）；预设测试从临时目录 `agent.cordis.yml` 改为声明式 `preset-standard` 行（`plugins: []`）；`tests/spine-events-compat.ts` 垫片随 spine-demo 一并删除
+
+验证：typecheck 0；全量 2725/2725（`--no-file-parallelism`）；vision-ask 32/32；真机 pty e2e 全绿（vendor 宿主 0.2.0-rc.1：启动、v4 zstd 持久化、空会话跨/同目录复用、16 会话、/session list 与选择器）。
+
 ## [1.0.0-rc.1] - 2026-09-14
 
 1.0.0 的首个候选版，版本号进入 1.0 线。收录 0.1.2-rc.31 之后的收敛与清理——重试路径正文丢失的修复、失败尝试的可见标记、assistant 流语义单点化，以及两处无消费方死状态的移除。

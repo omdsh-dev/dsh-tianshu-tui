@@ -30,7 +30,7 @@
 
 ## 安装
 
-本包不是独立程序。须先有官方 CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh)（npm `latest`，当前 `0.1.5-rc.1`；需 ≥ `0.1.5-rc.1`，peer 依赖对齐）。只 `npm i` 本包跑不起来。
+本包不是独立程序。须先有官方 CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh)（npm `next`，当前 `0.2.0-rc.1`；需 ≥ `0.2.0-rc.1`，peer 依赖对齐——npm `latest` 仍是 0.1.7 线，与本包不兼容）。只 `npm i` 本包跑不起来。
 
 **一键安装（推荐）**：仓库自带跨平台脚本，自动检测 Node/pnpm、经 pnpm 安装官方 CLI + 装配本插件并启动（国内网络默认走 npmmirror 镜像）：
 
@@ -53,33 +53,33 @@ powershell -ExecutionPolicy Bypass -File scripts\install-tui.ps1 -NoLaunch   # �
 
 > ⚠ **npm 11 的 OOM 坑**：官方 CLI `@deepseek-ai/dsh` 依赖树较大（60+ 子包），**npm 11（Node 24 自带）安装时会 JavaScript heap out of memory**（卡住数分钟后 OOM，实测复现）。请用 pnpm（下方命令）。若你已经在用 `npx -y @deepseek-ai/dsh` 且卡住/报 heap OOM，切到 pnpm 即可。
 
-**不要直接敲 `dsh`。** 若 PATH 上已有旧的 `dsh`（例如 `~/.local/bin/dsh`，`dsh --version` 低于 `0.1.0-rc.8`），会走到本地 staging，出现 `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`。请始终用下面的 `pnpm dlx` 命令。
+**不要直接敲 `dsh`。** 若 PATH 上已有旧的 `dsh`（例如 `~/.local/bin/dsh`，`dsh --version` 低于 `0.2.0-rc.1`），会走到本地 staging，出现 `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`。请始终用下面的 `pnpm dlx` 命令（`@next` = 0.2.0 线）。
 
 ### 2. 把本插件装进 tui profile
 
 ```sh
-pnpm dlx @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+pnpm dlx @deepseek-ai/dsh@next plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 ```
 
-pnpm 可能提示 peer missing，可忽略：peer 由官方 `dsh` 宿主提供，不必另装。没有 pnpm 也可以 `npx -y pnpm dlx @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui`。
+pnpm 可能提示 peer missing，可忽略：peer 由官方 `dsh` 宿主提供，不必另装。没有 pnpm 也可以 `npx -y pnpm dlx @deepseek-ai/dsh@next plugin --profile tui add @huiliyi37/dsh-tianshu-tui`。
 
 从 npm 安装后，每次启动会对照 npm `latest`：有新版本就写入 profile，提示重启后生效。也可在 TUI 里敲 `/update` 手动检查（只查不装，给出更新命令）。不想联网检查时设 `DSH_TUI_SKIP_UPDATE=1`。`github:` / `link:` 安装不会改写成 npm 包。
 
-也可以从 Git 装：`pnpm dlx @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`（仓库已包含 `lib/index.js`，不必再打包）。
+也可以从 Git 装：`pnpm dlx @deepseek-ai/dsh@next plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`（仓库已包含 `lib/index.js`，不必再打包）。
 
 ### 3. 启动
 
 ```sh
-pnpm dlx @deepseek-ai/dsh --profile tui
+pnpm dlx @deepseek-ai/dsh@next --profile tui
 ```
 
 看到欢迎页品牌 **dsh-tianshu-tui** 即成功。`Ctrl+Q` 或 `/exit` 退出。
 
-已全局安装官方 CLI（`pnpm add -g @deepseek-ai/dsh`）且 `dsh --version` 不低于 `0.1.0-rc.8` 时，把上面的 `pnpm dlx @deepseek-ai/dsh` 换成 `dsh` 即可。
+已全局安装官方 CLI（`pnpm add -g @deepseek-ai/dsh@next`）且 `dsh --version` 不低于 `0.2.0-rc.1` 时，把上面的 `pnpm dlx @deepseek-ai/dsh@next` 换成 `dsh` 即可。
 
 ### 4. agent 预设（`/preset`）
 
-命令是 `/preset`（没有 `/presets`）。本包 bundle 对标官方 web：关掉 host 上的 agent 面，挂上 `@deepseek-ai/dsh-agent-presets`（依赖钉死 `0.1.5-rc.1`，npm `latest` 仍停在过时的 `0.0.1-rc.1`）。`plugin add` 本包即连带装上花名册；新会话在 `setup` 里 `mount`，`/preset` 换的是官方 shipped 面（标准 / PTC / 极简 / 创造），不是叠在 `dsh-base` 工具上。
+命令是 `/preset`（没有 `/presets`）。本包 bundle 对标官方 web：关掉 host 上的 agent 面，挂官方 `@deepseek-ai/dsh-agent-preset-registry` 注册表（0.2.0 起取代旧的 `dsh-agent-presets` 花名册包），预设以 `dsh-agent-preset` 声明行随包携带（标准 / PTC / 极简 / 创造，与官方 web-app 同源）。`plugin add` 本包即连带装上注册表；新会话在 `setup` 里 `mount`，`/preset` 换的是官方 shipped 面，不是叠在 `dsh-base` 工具上。
 
 用法：
 
@@ -89,8 +89,8 @@ pnpm dlx @deepseek-ai/dsh --profile tui
 若 `npx` 仍报 `ERR_FS_EISDIR`，是 `~/.dsh/profiles/node_modules` 里旧的安装 fallback 与官方 CLI 冲突。换干净目录再启动：
 
 ```sh
-DSH_HOME=/tmp/dsh-tianshu pnpm dlx @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-DSH_HOME=/tmp/dsh-tianshu pnpm dlx @deepseek-ai/dsh --profile tui
+DSH_HOME=/tmp/dsh-tianshu pnpm dlx @deepseek-ai/dsh@next plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+DSH_HOME=/tmp/dsh-tianshu pnpm dlx @deepseek-ai/dsh@next --profile tui
 ```
 
 不要在 DeepSeek Harness 工作区根目录对本包跑 tsdown：会把未发布的 `@deepseek-ai/dsh-root` 写进 bundle，加载必失败。
@@ -99,7 +99,9 @@ DSH_HOME=/tmp/dsh-tianshu pnpm dlx @deepseek-ai/dsh --profile tui
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@1.0.0-rc.1`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v1.0.0-rc.1)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@1.0.0-rc.1`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v1.0.0-rc.2)）。
+
+**1.0.0-rc.2（2026-09-30）**：宿主线上到 0.2.0（官方 `next` 已切 `0.2.0-rc.1`）——消息模型重设计适配（每条消息携带 `id`/`role`/`source`，工具结果改为一等 `ToolResultMessage`，嵌套 `tool-result` 内容块退场）；agent 预设切到官方新架构（`dsh-agent-preset-registry` 注册表 + `dsh-agent-preset` 声明行，`agentPresets` 服务名与 mount/composeFrom 接缝不变）；bundle patch 的 agent 面禁用清单与官方 web-app 0.2.0 对齐（新增 tool-plugin-manager/command-goal/workflow-ptc，移除已消失的 tool-str-replace-editor/workflow-worker-thread）；runtime-context 注入源识别 `kind: 'runtime-context'`（保留旧日志的 `plugin` 兼容）；LSP 三件套升 `@huiliyi37/*` 0.8.0 线；会话日志格式 v4。⚠ 需宿主 ≥ 0.2.0-rc.1（`@deepseek-ai/dsh@next`）；node ≥ 24.4。
 
 **1.0.0-rc.1（2026-09-14）**：1.0.0 的首个候选版，版本号进入 1.0 线。收录 0.1.2-rc.31 之后的四项收敛——**重试路径正文丢失修复**（LLM 重试成功后该 step 的正文曾被整段丢弃：宿主每次尝试都是独立 attempt，按 step 粒度去重是模型性错误）；失败尝试的正文前落 `⟳ 未完成的尝试` 标记，避免它与成功正文被读成一段连续答案；assistant 流语义合并到 `adapter/assistant-stream` 单点维护（此前四处各自实现，同一宿主行为变更需四处联动）；移除两处无消费方的死状态（`SessionManager` 快照层、`TranscriptView.streaming` 聚合）。⚠ 需宿主 ≥ 0.1.5-rc.1；node ≥ 24.4。
 

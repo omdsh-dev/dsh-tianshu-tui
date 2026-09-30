@@ -78,10 +78,10 @@ function assistantMessage(text: string, seq = 2, reasoning = ''): TranscriptMess
   }
 }
 
-/** tool/result 事件：message.content[0] 为 tool-result 块（嵌套 text 折叠）。 */
+/** tool/result 事件：0.2.0 起 message.content 即平铺结果块（不再有嵌套 tool-result 块）。 */
 function toolResultEvent(
   callId: string,
-  blocks: Array<{ type: string; text?: string; content?: Array<{ type: string; text: string }> }>,
+  blocks: Array<{ type: string; text?: string }>,
   error?: unknown,
 ): SessionEvent<'tool/result'> {
   return {
@@ -91,8 +91,13 @@ function toolResultEvent(
     data: {
       turn: 1,
       step: 0,
-      toolCallId: callId,
-      message: { role: 'tool', content: blocks },
+      message: {
+        id: `t-${callId}`,
+        role: 'tool',
+        source: { kind: 'tool', callId },
+        toolCallId: callId,
+        content: blocks,
+      },
       ...(error === undefined ? {} : { error }),
     },
   } as unknown as SessionEvent<'tool/result'>
@@ -242,7 +247,7 @@ describe('renderMessageRows', () => {
 
 describe('renderToolRows', () => {
   it('tool/result 折叠 text 块 → 卡片行，kind tool', () => {
-    const result = toolResultEvent('c1', [{ type: 'tool-result', content: [{ type: 'text', text: 'line1' }, { type: 'text', text: 'line2' }] }])
+    const result = toolResultEvent('c1', [{ type: 'text', text: 'line1' }, { type: 'text', text: 'line2' }])
     const rows = renderToolRows(tool('c1', 'read_file', '{"file_path":"a.ts"}', result), fakeTheme())
     expect(rows.every(r => r.kind === 'tool')).toBe(true)
     const text = plain(rows).join('\n')
@@ -251,15 +256,15 @@ describe('renderToolRows', () => {
     expect(text).toContain('line2')
   })
 
-  it('result 首块非 tool-result → 内容为空（卡片仍渲染标题）', () => {
-    const result = toolResultEvent('c2', [{ type: 'text', text: '裸文本' }])
+  it('result 无 text 块 → 内容为空（卡片仍渲染标题）', () => {
+    const result = toolResultEvent('c2', [{ type: 'image' }])
     const rows = renderToolRows(tool('c2', 'bash', '{}', result), fakeTheme())
     expect(rows.length).toBeGreaterThan(0)
     expect(plain(rows).join('\n')).not.toContain('裸文本')
   })
 
   it('result 带 error → isError 错误态（非静默）', () => {
-    const result = toolResultEvent('c3', [{ type: 'tool-result', content: [{ type: 'text', text: 'boom' }] }], { name: 'Error', code: 'E1' })
+    const result = toolResultEvent('c3', [{ type: 'text', text: 'boom' }], { name: 'Error', code: 'E1' })
     const rows = renderToolRows(tool('c3', 'bash', '{}', result), fakeTheme())
     expect(rows.length).toBeGreaterThan(0)
   })
@@ -276,14 +281,14 @@ describe('renderToolRows', () => {
   })
 
   it('expanded 展开卡片体', () => {
-    const result = toolResultEvent('c5', [{ type: 'tool-result', content: [{ type: 'text', text: '详情' }] }])
+    const result = toolResultEvent('c5', [{ type: 'text', text: '详情' }])
     const collapsed = renderToolRows(tool('c5', 'bash', '{}', result), fakeTheme())
     const expanded = renderToolRows(tool('c5', 'bash', '{}', result), fakeTheme(), { expanded: true })
     expect(expanded.length).toBeGreaterThanOrEqual(collapsed.length)
   })
 
   it('resolveViews 注入 diff 意图 → 结构化 diff 卡（+/- 行 + presenter 标题）', () => {
-    const result = toolResultEvent('c6', [{ type: 'tool-result', content: [{ type: 'text', text: '模型面文本' }] }])
+    const result = toolResultEvent('c6', [{ type: 'text', text: '模型面文本' }])
     const rows = renderToolRows(tool('c6', 'edit_file', '{"file_path":"a.ts"}', result), fakeTheme(), {
       resolveViews: () => ({
         result: { card: 'diff', title: 'Edit a.ts', diffs: [{ path: 'a.ts', oldText: 'x = 1', newText: 'x = 2' }] },

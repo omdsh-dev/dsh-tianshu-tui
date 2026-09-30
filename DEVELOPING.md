@@ -32,7 +32,7 @@ lsp/                独立插件源码（@deepseek-ai/dsh-lsp，已迁出为社�
 
 ## 依赖前提
 
-peerDependencies 指向 `@deepseek-ai/*`（`^0.1.0-rc.6`）与 `@deepseek-ai/cordis`（`^4.0.1`）。
+peerDependencies 指向 `@deepseek-ai/*`（`^0.2.0-rc.1`）与 `@deepseek-ai/cordis`（`^4.0.4`）。
 官方核心包已在 npm `next` 标签发布；`@deepseek-ai/dsh` CLI 与 `@deepseek-ai/dsh-workflow`
 仍未上架。`pnpm install`、`tsc`、`vitest` 可在能解析这些 peer 的环境运行（公开版
 monorepo 工作区：`pnpm exec tsc -b packages/tui/tui`、`pnpm vitest run packages/tui/tui/tests`）。

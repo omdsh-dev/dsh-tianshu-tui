@@ -1,8 +1,22 @@
 // REAL-composition lane（packages/AGENTS.md 契约）：test-only cordis.yml 经
-// Loader 进程内 boot，真实 Cordis Context 与真实服务树（spine + 审批/提问服务），
+// Loader 进程内 boot，真实 Cordis Context 与真实服务树（0.2.0 起 spine-demo
+// 退场，改为直接装配 dsh-session/dsh-agent/dsh-agent-loop + 审批/提问服务），
 // 只在终端边界造假（fake TTY 流）、llm-replay 顶掉真适配器。断言用行为判据：
 // 挂载后事件驱动渲染、tui-runner fiber dispose 后监听器全释放（写静默）、
 // raw-mode 对称恢复。C4 认领的 disposer 缺陷以 it.todo 立线（见文末）。
+//
+// 0.2.0 适配注记：
+// - dsh-settings-file 不存在了。dsh-settings 需要 profileContext（只在真实
+//   profile 启动时提供），组合测试激活不了；TUI 把 settings 当可选服务
+//   （waitForServicesReady 对未注册服务直接跳过），故装配里不挂 settings。
+// - dsh-agent-spine-demo 不存在了（停在 0.1.2-alpha.2）。它过去转发 config 给
+//   agent-loop（agents 列表）/system-prompt/skill registry 并拉起
+//   sessions+agents；0.2.0 直接装配单包：dsh-session（sessions）、
+//   dsh-agent（agents）、dsh-agent-loop（turn 循环，inject 含
+//   agents/sessions/llm/tools/systemPrompt/sessionProjections）。
+//   测试不再预铸 main agent：attach 恒走 TUI 自己的 newSession（确定性）。
+// - 夹具 session.jsonl 头部按当前线上格式：version 4（SESSION_FORMAT_VERSION，
+//   物理头 = v2 框架 + delegationDepth 必填）。
 import { EventEmitter } from 'node:events'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -13,22 +27,22 @@ import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import type { ReadStream, WriteStream } from 'node:tty'
-import SettingsLocal from '@deepseek-ai/dsh-settings-file'
 import CredentialsLocal from '@deepseek-ai/dsh-credentials-local'
 import UserApproval from '@deepseek-ai/dsh-user-approval'
 import UserQuestions from '@deepseek-ai/dsh-user-questions'
+import Llm from '@deepseek-ai/dsh-llm'
 import * as LlmReplay from '@deepseek-ai/dsh-llm-replay'
-import * as AgentSpine from '@deepseek-ai/dsh-agent-spine-demo'
-import { installSpineEventsCompat } from './spine-events-compat.js'
-
-// spine-demo 停在 alpha.2：安装 Session.events → snapshotEvents 兼容垫片（见模块头）
-installSpineEventsCompat()
+import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjection from '@deepseek-ai/dsh-session-projection'
+import AgentRegistry from '@deepseek-ai/dsh-agent'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import Tools from '@deepseek-ai/dsh-tools'
 import AgentDefaultModel from '@deepseek-ai/dsh-agent-default-model'
+import Goal from '@deepseek-ai/dsh-goal'
 import Subagent, { SubagentRunId } from '@deepseek-ai/dsh-subagent'
-    import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { WorkflowRunId } from '@deepseek-ai/dsh-workflow'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
-import { SessionId } from '@deepseek-ai/dsh-session'
 import * as Tui from '../src/index.js'
 
 interface FakeStdout {
@@ -102,11 +116,12 @@ interface Booted {
 }
 
 /**
- * Boot the real tui composition (example cordis.yml minus the real adapter)
- * through an in-process Loader. Does not provide launcher cmdlineArgs/appExit —
+ * Boot the real tui composition through an in-process Loader: 0.2.0 单包服务树
+ * （session/agent/agent-loop + systemPrompt/tools/sessionProjections +
+ * llm-replay 顶掉真适配器）。Does not provide launcher cmdlineArgs/appExit —
  * tui-runner must activate without those host services.
- * @param opts.withGoalSubagent - false 时省略 subagent 插件与 spine 的 goals
- *   配置（goals/subagents 服务缺席）：tui-runner 只把二者当可选服务，缺省 true。
+ * @param opts.withGoalSubagent - false 时省略 goal/subagent 插件（goals/subagents
+ *   服务缺席）：tui-runner 只把二者当可选服务，缺省 true。
  * @returns the booted root context, fake streams, and the tui plugin fiber handle.
  */
 async function boot(opts?: { withGoalSubagent?: boolean }): Promise<Booted> {
@@ -119,20 +134,24 @@ async function boot(opts?: { withGoalSubagent?: boolean }): Promise<Booted> {
   let tuiCtx: Context | undefined
 
   // 场景不驱动任何模型调用：fixture 带 session 头、0 条录制脚本即合法，真调用会 fail loud。
-  // （rc.2 起 llm-replay 拒绝空文件：快照必须以 session header 开头。）
+  // 0.2.0：头部按当前格式写 version 4（物理 v2 框架 + delegationDepth 必填）。
   const fixturePath = join(root, 'session.jsonl')
-  await writeFile(fixturePath, JSON.stringify({ type: 'session', version: 0, id: 'loader-comp-1', createdAt: 0 }) + '\n')
+  await writeFile(fixturePath, JSON.stringify({
+    type: 'session', version: 4, id: 'loader-comp-1', createdAt: 0, isSeeded: false, delegationDepth: 0,
+  }) + '\n')
 
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, [
-    '- id: settings',
-    "  name: '@deepseek-ai/dsh-settings-file'",
+    // settings 缺席：dsh-settings 需要 profileContext（真实 profile 启动才有），
+    // 组合测试激活不了；TUI 对未注册服务跳过等待（waitForServicesReady）。
     '- id: credentials',
     "  name: '@deepseek-ai/dsh-credentials-local'",
     '- id: user-approval',
     "  name: '@deepseek-ai/dsh-user-approval'",
     '- id: user-questions',
     "  name: '@deepseek-ai/dsh-user-questions'",
+    '- id: llm',
+    "  name: '@deepseek-ai/dsh-llm'",
     '- id: llm-replay',
     "  name: '@deepseek-ai/dsh-llm-replay'",
     '  config:',
@@ -143,32 +162,33 @@ async function boot(opts?: { withGoalSubagent?: boolean }): Promise<Booted> {
     '          - id: deepseek-v4-flash',
     '            contextWindow: 128000',
     // goals/subagents 是 tui-runner 的可选服务（不进 inject，缺失时经 reflect
-    // 读 undefined 后降级）：本组合覆盖 /goal 与委派树，故装配 subagent 插件与
-    // spine 的 goals 配置；withGoalSubagent=false 的场景验证缺席时仍能激活。
-    '- id: agent-n',
+    // 读 undefined 后降级）：本组合覆盖 /goal 与委派树，故装配 goal/subagent
+    // 插件；withGoalSubagent=false 的场景验证缺席时仍能激活。
+    '- id: sessions',
+    "  name: '@deepseek-ai/dsh-session'",
+    '- id: session-projections',
+    "  name: '@deepseek-ai/dsh-session-projection'",
+    '- id: agents',
+    "  name: '@deepseek-ai/dsh-agent'",
+    '- id: system-prompt',
+    "  name: '@deepseek-ai/dsh-system-prompt'",
+    '- id: tools',
+    "  name: '@deepseek-ai/dsh-tools'",
+    '- id: agent-default-model',
     "  name: '@deepseek-ai/dsh-agent-default-model'",
     '  config:',
     '    provider: deepseek-official',
     '    model: deepseek-v4-flash',
     ...(withGoalSubagent ? [
+      '- id: goal',
+      "  name: '@deepseek-ai/dsh-goal'",
       '- id: subagent',
       "  name: '@deepseek-ai/dsh-subagent'",
     ] : []),
+    // 0.2.0 的 agent-loop 直接提供 agents.create 工厂（旧 spine-demo 的
+    // agents 预铸列表已随 mega-bundle 退场；组合测试从 TUI newSession 拿会话）。
     '- id: agent-loop',
-      "  name: '@deepseek-ai/dsh-agent-loop'",
-    '- id: agent-spine',
-    "  name: '@deepseek-ai/dsh-agent-spine-demo'",
-    '  config:',
-    '    agents:',
-    '      - id: main',
-    '        provider: deepseek-official',
-    '        model: deepseek-v4-flash',
-    `        cwd: ${JSON.stringify(root)}`,
-    ...(withGoalSubagent ? ['    goals: {}'] : []),
-    '    workspaceContext:',
-    '      maxBytes: 65536',
-    '    persona: |',
-    '      You are the tui composition-test agent, powered by the {{model}} model.',
+    "  name: '@deepseek-ai/dsh-agent-loop'",
     '- id: tui-runner',
     "  name: '@huiliyi37/dsh-tianshu-tui'",
     '',
@@ -184,15 +204,20 @@ async function boot(opts?: { withGoalSubagent?: boolean }): Promise<Booted> {
     },
   }
   const modules = new Map<string, unknown>([
-    ['@deepseek-ai/dsh-settings-file', SettingsLocal],
     ['@deepseek-ai/dsh-credentials-local', CredentialsLocal],
     ['@deepseek-ai/dsh-user-approval', UserApproval],
     ['@deepseek-ai/dsh-user-questions', UserQuestions],
+    ['@deepseek-ai/dsh-llm', Llm],
     ['@deepseek-ai/dsh-llm-replay', LlmReplay],
+    ['@deepseek-ai/dsh-session', SessionStore],
+    ['@deepseek-ai/dsh-session-projection', SessionProjection],
+    ['@deepseek-ai/dsh-agent', AgentRegistry],
+    ['@deepseek-ai/dsh-system-prompt', SystemPrompt],
+    ['@deepseek-ai/dsh-tools', Tools],
     ['@deepseek-ai/dsh-agent-default-model', AgentDefaultModel],
+    ['@deepseek-ai/dsh-goal', Goal],
     ['@deepseek-ai/dsh-subagent', Subagent],
     ['@deepseek-ai/dsh-agent-loop', AgentLoop],
-    ['@deepseek-ai/dsh-agent-spine-demo', AgentSpine],
     ['@huiliyi37/dsh-tianshu-tui', wrappedTui],
   ])
 
@@ -240,7 +265,7 @@ describe('tui real Loader composition through cordis.yml', () => {
     }, { timeout: 10_000 })
   }, 15_000)
 
-  it('mounts over the real spine, renders on events, and releases every listener on fiber dispose', async () => {
+  it('mounts over the real service tree, renders on events, and releases every listener on fiber dispose', async () => {
     const { ctx, stdout, stdin, tuiCtx } = await boot()
 
     // attach 是 runner 内的异步路径：以首帧渲染为完成判据（启动 context bar +
@@ -328,8 +353,9 @@ describe('tui real Loader composition through cordis.yml', () => {
     // 到 TUI answerer（真实 ApprovalService.request 要求开着的回合，组合线会话
     // 空闲——绕过服务策略层，直测 TUI 的挂起/结算行为）。scope 不变量要求载体
     // 键与事件主体同对象（dsh-scope 强制）：载体键到 req.agent。
-    // rc.1 wire：ask 必须携带 live agent（scope-filtered 派发的载体），answerer
-    // 由 TUI global 注册接收。
+    // 0.2.0 wire：ask 必须携带 live agent（scope-filtered 派发的载体；服务会
+    // 校验 agents.get(agent.id) === agent 且为 root），answerer 由 TUI global
+    // 注册接收。
     const question = ctx.userQuestions.ask({
       questions: [{ id: 'q1', question: '继续？', options: [{ label: '是' }, { label: '否' }] }],
       agent,

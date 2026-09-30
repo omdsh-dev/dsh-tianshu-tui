@@ -46,9 +46,9 @@ export interface ToolViewRequest {
   argumentsRaw: string
   /** 已结算结果；进行中调用缺省（只解析 presentCall）。 */
   result?: {
-    /** tool-result 块内的模型面内容。 */
-    content: ContentBlock[]
-    /** 结果是否为错误（事件 error 或块级 isError）。 */
+    /** 结果消息的模型面内容（0.2.0 起 tool/result 的 content 即平铺块列）。 */
+    content: readonly ContentBlock[]
+    /** 结果是否为错误（事件 error 或消息级 isError）。 */
     isError: boolean
     /** tool/result 事件透传的 tool-private 展示载荷。 */
     meta?: JsonValue
@@ -74,7 +74,7 @@ export function resolveToolViews(
     const result = request.result === undefined
       ? undefined
       : definition.presentResult?.(args, {
-        content: request.result.content,
+        content: [...request.result.content],
         isError: request.result.isError,
         ...(request.result.meta === undefined ? {} : { meta: request.result.meta }),
       })

@@ -21,9 +21,9 @@
 
 - 插件 id 固定 `tui-runner`。
 - 包名固定 `@huiliyi37/dsh-tianshu-tui`（不要改成 `@deepseek-ai/*` 或 `@dsh-external/*`）。
-- 只 bump 根 `package.json` 的 `"version"`。不要顺手 bump `peerDependencies` 里的官方 `@deepseek-ai/*`（那是宿主 CLI 线，现为 `^0.1.0-rc.6`）。
+- 只 bump 根 `package.json` 的 `"version"`。不要顺手 bump `peerDependencies` 里的官方 `@deepseek-ai/*`（那是宿主 CLI 线，现为 `^0.2.0-rc.1`）。
 - 不要 bump `vision-ask/`，除非这次明确发那个包。
-- README 里写的官方 CLI `0.1.0-rc.6` 是宿主版本，不是本包版本。
+- README 里写的官方 CLI `0.2.0-rc.1` 是宿主版本，不是本包版本。
 - `lib/index.js` / `lib/invariant.js` **必须跟仓**（github / npm 安装吃 bundle，不在宿主里再打包）。改了 `src/` 就要同步 bundle。
 - 不要提交 `.npmrc` / token。
 - 不要 force-push `main`。
@@ -178,8 +178,8 @@ HTTP_PROXY=http://127.0.0.1:7890 HTTPS_PROXY=http://127.0.0.1:7890 \
 尚未带自更新的旧装（`0.1.0-rc.6` 及更早）需手动一次：
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-npx -y @deepseek-ai/dsh --profile tui
+npx -y @deepseek-ai/dsh@next plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh@next --profile tui
 ```
 
 ## 发版后检查清单

@@ -10,23 +10,23 @@ dsh-tianshu-tui 是官方 DeepSeek Harness 的交互式终端 UI 插件。本文
 - 运行模型需要 API key:环境变量 `DEEPSEEK_API_KEY`(或用官方 CLI 的登录流程)
 
 > **不要直接敲 `dsh`。** 若 PATH 上已有旧的 `dsh`(如 `~/.local/bin/dsh`,
-> `dsh --version` 不是 `0.1.0-rc.6`),会走到本地 staging,出现 `ERR_FS_EISDIR` /
+> `dsh --version` 低于 `0.2.0-rc.1`),会走到本地 staging,出现 `ERR_FS_EISDIR` /
 > `Path is a directory .../@deepseek-ai/dsh`。请始终用下面的 `npx` 命令。
 
 ## 安装
 
 ```sh
 # 1. 把插件装进 tui profile
-npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh@next plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 
 # 2. 启动
-npx -y @deepseek-ai/dsh --profile tui
+npx -y @deepseek-ai/dsh@next --profile tui
 ```
 
 看到欢迎页品牌 **dsh-tianshu-tui** 即成功。`Ctrl+Q` 或 `/exit` 退出。
 
 - pnpm 可能提示 peer missing,可忽略:peer 由官方 `dsh` 宿主提供。
-- 已全局安装官方 CLI 且版本正确时,把 `npx -y @deepseek-ai/dsh` 换成 `dsh`。
+- 已全局安装官方 CLI 且版本正确时,把 `npx -y @deepseek-ai/dsh@next` 换成 `dsh`。
 - 从 Git 安装:`dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`。
 
 ## 首次使用
@@ -55,9 +55,19 @@ npx -y @deepseek-ai/dsh --profile tui
 `~/.dsh/profiles/node_modules` 里有旧的安装 fallback 与官方 CLI 冲突。换干净目录:
 
 ```sh
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@next plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@next --profile tui
 ```
+
+**`plugin add` 报 `plugin command failed`（pnpm ≥ 11.7 / 0.2.0 宿主）**
+0.2.0 宿主依赖树含原生构建脚本（node-pty 等），pnpm ≥ 11.7 对未裁决的构建以
+exit 1 失败。打开 `$DSH_HOME/profiles/tui/pnpm-workspace.yaml`，把 `allowBuilds`
+段的占位值（`set this to true or false`）逐条改成 `false`（保留
+`@deepseek-ai/dsh-subprocess-local: true`——它只负责 chmod node-pty 的预编译
+helper），然后重跑 `plugin add`。
+若首次失败后 profile 里插件已列进 dependencies 但没进 `dsh.profile.bundles`
+（启动后无 TUI、无报错），先 `plugin remove @huiliyi37/dsh-tianshu-tui` 再重新
+`plugin add`——重跑 reconcile 只登记「新增」依赖。
 
 **提示"插件已更新到 …,请重启 dsh 后生效"**
 自更新机制把 profile 里的包升到了 npm 新版本,重启即可。
@@ -74,7 +84,7 @@ DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
 自动消费其 `lsp` 服务,与模型工具面共享同一 LSP server 集。
 
 **`/preset` 提示「agent-presets 服务不可用」**
-更新到本包含 agent 面装配的版本（`plugin add` 本包会连带装上官方预设包）。
+更新到本包含 agent 面装配的版本（`plugin add` 本包会连带装上官方预设注册表）。
 命令是 `/preset`,不是 `/presets`。已装旧版的 profile 自更新后会带上新依赖。
 
 ## 下一步

@@ -1,10 +1,25 @@
 /**
- * preset-join 真实 spine 装配：能解析官方 presets 包时，新会话 composedPreset 非空。
- * 解不到包则跳过，不让 CI 因缺官方包红。不依赖 CLI 注入的 shipped 根——
- * 测试自备空 composition（[] 合法），只钉 join/mount 接线。
+ * preset-join 真实装配：0.2.0 预设架构（dsh-agent-preset-registry 花名册 +
+ * dsh-agent-preset 声明行）下，create/setup 挂载后 composedPreset === 'standard'，
+ * 经 TUI /session new 的新会话同样 join 到 standard。不依赖 CLI 注入的
+ * shipped 根——测试自备声明式空 composition（plugins: [] 合法），只钉
+ * join/mount 接线。
+ *
+ * 0.2.0 适配注记：
+ * - dsh-agent-presets（临时目录 + agent.cordis.yml + config.roots）不存在了。
+ *   替代：registry（Config { default, selectedDefault? }，inject
+ *   ["loader", "sessionProjections"]）+ 每个预设一行 dsh-agent-preset
+ *   （Config { id, name?, description?, order?, plugins }）。registry 继承
+ *   TypertRemoteService，但构造只需 loader/sessionProjections——mount 时经
+ *   scopeOf(agentCtx) 绑定，agent ctx 由 agent-loop 铸 scope。
+ * - dsh-settings-file / dsh-agent-spine-demo 均不存在了；settings 是 TUI 的
+ *   可选服务（未注册即跳过等待），sessions/agents 由 dsh-session /
+ *   dsh-agent / dsh-agent-loop 直接提供。
+ * - 夹具 session.jsonl 头部按当前线上格式：version 4（物理 v2 框架 +
+ *   delegationDepth 必填）。
  */
 import { EventEmitter } from 'node:events'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -13,20 +28,21 @@ import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import type { ReadStream, WriteStream } from 'node:tty'
-import SettingsLocal from '@deepseek-ai/dsh-settings-file'
 import CredentialsLocal from '@deepseek-ai/dsh-credentials-local'
 import UserApproval from '@deepseek-ai/dsh-user-approval'
 import UserQuestions from '@deepseek-ai/dsh-user-questions'
+import Llm from '@deepseek-ai/dsh-llm'
 import * as LlmReplay from '@deepseek-ai/dsh-llm-replay'
-import * as AgentSpine from '@deepseek-ai/dsh-agent-spine-demo'
-import { installSpineEventsCompat } from './spine-events-compat.js'
-
-// spine-demo 停在 alpha.2：安装 Session.events → snapshotEvents 兼容垫片（见模块头）
-installSpineEventsCompat()
+import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjection from '@deepseek-ai/dsh-session-projection'
+import AgentRegistry from '@deepseek-ai/dsh-agent'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import Tools from '@deepseek-ai/dsh-tools'
 import AgentDefaultModel from '@deepseek-ai/dsh-agent-default-model'
 import Subagent from '@deepseek-ai/dsh-subagent'
-  import AgentLoop from '@deepseek-ai/dsh-agent-loop'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import AgentPresetRegistry from '@deepseek-ai/dsh-agent-preset-registry'
+import AgentPreset from '@deepseek-ai/dsh-agent-preset'
 import * as Tui from '../src/index.js'
 import { joinPreset, presetJoinFacet } from '../src/adapter/preset-join.js'
 
@@ -70,43 +86,31 @@ afterEach(async () => {
   vi.unstubAllEnvs()
 })
 
-async function tryLoadPresets(): Promise<unknown | undefined> {
-  try {
-    return (await import('@deepseek-ai/dsh-agent-presets')).default
-  } catch {
-    return undefined
-  }
-}
-
-describe('preset-join real spine composition', () => {
-  it('能解析 presets 包时新会话 composedPreset 非空（解不到则跳过）', async () => {
-    const AgentPresets = await tryLoadPresets()
-    if (AgentPresets === undefined) return
-
+describe('preset-join real composition', () => {
+  it('create/setup 与 /session new 的新会话 composedPreset 均为 standard', async () => {
     root = await mkdtemp(join(tmpdir(), 'dsh-tui-preset-join-'))
     vi.stubEnv('DSH_HOME', join(root, '.dsh'))
     vi.stubEnv('DSH_AGENTS_HOME', join(root, '.agents'))
-    const presetRoot = join(root, 'presets')
-    await mkdir(join(presetRoot, 'standard'), { recursive: true })
-    await writeFile(join(presetRoot, 'standard', 'agent.cordis.yml'), '[]\n')
 
     const fixturePath = join(root, 'session.jsonl')
     await writeFile(fixturePath, [
-      JSON.stringify({ type: 'session', version: 0, id: 'pj-s1', createdAt: 0 }),
+      JSON.stringify({ type: 'session', version: 4, id: 'pj-s1', createdAt: 0, isSeeded: false, delegationDepth: 0 }),
     ].join('\n') + '\n')
 
     const stdout = makeStdout()
     const stdin = makeStdin()
     const configPath = join(root, 'cordis.yml')
     await writeFile(configPath, [
-      '- id: settings',
-      "  name: '@deepseek-ai/dsh-settings-file'",
+      // settings 缺席：dsh-settings 需要 profileContext（真实 profile 启动才有），
+      // 组合测试激活不了；TUI 对未注册服务跳过等待（waitForServicesReady）。
       '- id: credentials',
       "  name: '@deepseek-ai/dsh-credentials-local'",
       '- id: user-approval',
       "  name: '@deepseek-ai/dsh-user-approval'",
       '- id: user-questions',
       "  name: '@deepseek-ai/dsh-user-questions'",
+      '- id: llm',
+      "  name: '@deepseek-ai/dsh-llm'",
       '- id: llm-replay',
       "  name: '@deepseek-ai/dsh-llm-replay'",
       '  config:',
@@ -116,7 +120,17 @@ describe('preset-join real spine composition', () => {
       '        models:',
       '          - id: deepseek-v4-flash',
       '            contextWindow: 128000',
-      '- id: agent-n',
+      '- id: sessions',
+      "  name: '@deepseek-ai/dsh-session'",
+      '- id: session-projections',
+      "  name: '@deepseek-ai/dsh-session-projection'",
+      '- id: agents',
+      "  name: '@deepseek-ai/dsh-agent'",
+      '- id: system-prompt',
+      "  name: '@deepseek-ai/dsh-system-prompt'",
+      '- id: tools',
+      "  name: '@deepseek-ai/dsh-tools'",
+      '- id: agent-default-model',
       "  name: '@deepseek-ai/dsh-agent-default-model'",
       '  config:',
       '    provider: deepseek-official',
@@ -124,29 +138,17 @@ describe('preset-join real spine composition', () => {
       '- id: subagent',
       "  name: '@deepseek-ai/dsh-subagent'",
       '- id: agent-loop',
-        "  name: '@deepseek-ai/dsh-agent-loop'",
-      '- id: agent-spine',
-      "  name: '@deepseek-ai/dsh-agent-spine-demo'",
-      '  config:',
-      '    agents:',
-      '      - id: main',
-      '        provider: deepseek-official',
-      '        model: deepseek-v4-flash',
-      `        cwd: ${JSON.stringify(root)}`,
-      '    goals: {}',
-      '    workspaceContext:',
-      '      maxBytes: 65536',
-      '    persona: |',
-      '      You are the preset-join composition-test agent.',
+      "  name: '@deepseek-ai/dsh-agent-loop'",
+      // 0.2.0 声明式预设：花名册（default 指认）+ 一行预设声明（空插件列表合法）。
       '- id: agent-presets',
-      "  name: '@deepseek-ai/dsh-agent-presets'",
+      "  name: '@deepseek-ai/dsh-agent-preset-registry'",
       '  config:',
       '    default: standard',
-      '    includeUserRoot: false',
-      '    includeShippedRoot: false',
-      '    roots:',
-      `      - path: ${JSON.stringify(presetRoot)}`,
-      '        trust: system',
+      '- id: preset-standard',
+      "  name: '@deepseek-ai/dsh-agent-preset'",
+      '  config:',
+      '    id: standard',
+      '    plugins: []',
       '- id: tui-runner',
       "  name: '@huiliyi37/dsh-tianshu-tui'",
       '',
@@ -159,16 +161,21 @@ describe('preset-join real spine composition', () => {
       },
     }
     const modules = new Map<string, unknown>([
-      ['@deepseek-ai/dsh-settings-file', SettingsLocal],
       ['@deepseek-ai/dsh-credentials-local', CredentialsLocal],
       ['@deepseek-ai/dsh-user-approval', UserApproval],
       ['@deepseek-ai/dsh-user-questions', UserQuestions],
+      ['@deepseek-ai/dsh-llm', Llm],
       ['@deepseek-ai/dsh-llm-replay', LlmReplay],
+      ['@deepseek-ai/dsh-session', SessionStore],
+      ['@deepseek-ai/dsh-session-projection', SessionProjection],
+      ['@deepseek-ai/dsh-agent', AgentRegistry],
+      ['@deepseek-ai/dsh-system-prompt', SystemPrompt],
+      ['@deepseek-ai/dsh-tools', Tools],
       ['@deepseek-ai/dsh-agent-default-model', AgentDefaultModel],
       ['@deepseek-ai/dsh-subagent', Subagent],
-  ['@deepseek-ai/dsh-agent-loop', AgentLoop],
-      ['@deepseek-ai/dsh-agent-spine-demo', AgentSpine],
-      ['@deepseek-ai/dsh-agent-presets', AgentPresets],
+      ['@deepseek-ai/dsh-agent-loop', AgentLoop],
+      ['@deepseek-ai/dsh-agent-preset-registry', AgentPresetRegistry],
+      ['@deepseek-ai/dsh-agent-preset', AgentPreset],
       ['@huiliyi37/dsh-tianshu-tui', wrappedTui],
     ])
 
@@ -196,7 +203,8 @@ describe('preset-join real spine composition', () => {
     } | undefined
     expect(roster?.composedPreset).toBeTypeOf('function')
 
-    // spine-demo 启动时已铸 main agent（无 join）；直接 create 才走 setup mount。
+    // 0.2.0 不再预铸 main agent（attach 的 newSession 已 join）；直接 create
+    // 走显式 setup mount，验证 joinPreset 接线本身。
     const created = await ctx.agents.create({
       sessionId: SessionId('session-preset-join'),
       meta: { cwd: root },

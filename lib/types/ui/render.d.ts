@@ -45,7 +45,7 @@ export interface RenderTranscriptOptions {
  * 从配对的 `tool/result` 事件提取模型面显示文本与错误标记。
  * live 结算提交（app.ts）与 resume 回放（renderToolRows）共用同一提取。
  * @param result - 配对的 tool/result 事件。
- * @returns tool-result 块内 text 块折叠文本 + 错误标记（事件 error 或块级 isError）。
+ * @returns 结果消息 content 内 text 块折叠文本 + 错误标记（事件 error 或消息级 isError）。
  */
 export declare function toolResultText(result: SessionEvent<'tool/result'>): {
     content: string;

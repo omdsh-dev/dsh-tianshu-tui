@@ -3324,7 +3324,7 @@ export class TuiApp {
         argumentsRaw: tool.arguments,
         ...(tool.result === undefined ? {} : {
           result: {
-            content: tool.result.data.message.content[0].content,
+            content: tool.result.data.message.content,
             isError: toolResultText(tool.result).isError,
             ...(tool.result.data.meta === undefined ? {} : { meta: tool.result.data.meta }),
           },
@@ -3437,10 +3437,9 @@ export class TuiApp {
       }
       case 'tool/result': {
         // Phase 9d：工具结果 → 追踪 routine 链 / 输出速率 / 错误信号。
-        // resultLength 取结果消息文本长度（tool-result 块内 text 折叠）。
+        // resultLength 取结果消息文本长度（0.2.0 起 content 即平铺 ContentBlock[]）。
         const { message, error } = event.data
-        const resultBlock = message.content[0]
-        const resultLength = resultBlock.content.reduce(
+        const resultLength = message.content.reduce(
           (acc, block) => acc + (block.type === 'text' ? block.text.length : 0),
           0,
         )
@@ -3448,7 +3447,7 @@ export class TuiApp {
         const name = this.transcript?.view.tools.findLast(t => t.callId === callId)?.name ?? 'tool'
         this.fluency.recordToolResult({
           name,
-          isError: error !== undefined || resultBlock.isError === true,
+          isError: error !== undefined || message.isError === true,
           resultLength,
         })
         this.pendingCallTitles.delete(callId)
@@ -3518,7 +3517,7 @@ export class TuiApp {
       name: tool.name,
       argumentsRaw: tool.arguments,
       result: {
-        content: event.data.message.content[0].content,
+        content: event.data.message.content,
         isError,
         ...(event.data.meta === undefined ? {} : { meta: event.data.meta }),
       },

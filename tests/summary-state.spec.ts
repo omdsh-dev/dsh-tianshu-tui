@@ -28,9 +28,11 @@ function toolResult(seq: number, callId: string, turn: number, step: number, err
       turn,
       step,
       message: {
-        role: 'user',
+        id: `t-${String(seq)}`,
+        role: 'tool',
         source: { kind: 'tool', callId: callId as ToolCallId },
-        content: [{ type: 'tool-result', toolCallId: callId, content: [] }],
+        toolCallId: callId as ToolCallId,
+        content: [],
       },
       ...(error === undefined ? {} : { error }),
     },
@@ -135,8 +137,8 @@ describe('applySummaryEvent', () => {
       seq: SessionSeq(1),
       time: 1001,
       type: 'user/message',
-      data: { content: [{ type: 'text', text: 'hi' }] },
-    } as SessionEvent)
+      data: { id: 'm-1', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'hi' }] },
+    } as unknown as SessionEvent)
     expect(unchanged).toBe(state)
   })
 })

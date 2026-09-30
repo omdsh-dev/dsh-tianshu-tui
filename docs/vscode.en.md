@@ -8,7 +8,7 @@ dsh-tianshu-tui is a terminal application and runs directly in the VS Code integ
 2. Open the VS Code integrated terminal (Terminal → New Terminal) and run:
 
 ```sh
-npx -y @deepseek-ai/dsh --profile tui
+npx -y @deepseek-ai/dsh@next --profile tui
 ```
 
 ## Recommended Terminal Settings

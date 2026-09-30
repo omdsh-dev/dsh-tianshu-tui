@@ -56,24 +56,19 @@ export interface RenderTranscriptOptions {
  * 从配对的 `tool/result` 事件提取模型面显示文本与错误标记。
  * live 结算提交（app.ts）与 resume 回放（renderToolRows）共用同一提取。
  * @param result - 配对的 tool/result 事件。
- * @returns tool-result 块内 text 块折叠文本 + 错误标记（事件 error 或块级 isError）。
+ * @returns 结果消息 content 内 text 块折叠文本 + 错误标记（事件 error 或消息级 isError）。
  */
 export function toolResultText(result: SessionEvent<'tool/result'>): { content: string; isError: boolean } {
-  let content = ''
-  // tool/result 的 message.content[0] 是 ToolResultBlock（type 'tool-result'），
-  // 其 content 为嵌套 ContentBlock[]——折叠其中的 text 块为显示文本。
-  // 类型断言放宽到运行时真实形状：transcript 数据可绕过静态类型（render.spec
-  // 边界用例喂非 ToolResultBlock 首块），type/content 守卫是真实防护而非死代码。
-  const first = result.data.message.content[0] as
-    | { type: string; isError?: boolean; content: readonly { type: string; text?: string }[] | undefined }
-    | undefined
-  if (first !== undefined && first.type === 'tool-result' && first.content !== undefined) {
-    content = first.content
-      .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
-      .map(block => block.text)
-      .join('\n')
-  }
-  const isError = result.data.error !== undefined || first?.isError === true
+  // 0.2.0：tool/result 的 message 是一等 ToolResultMessage——content 即平铺
+  // ContentBlock[]（不再有嵌套 tool-result 块），isError 在消息级。
+  // 防御守卫保留：transcript 数据可绕过静态类型（render.spec 边界用例喂
+  // 未知形状），filter 的 type 守卫是真实防护而非死代码。
+  const blocks = result.data.message.content as readonly { type: string; text?: string }[]
+  const content = blocks
+    .filter((block): block is { type: 'text'; text: string } => block.type === 'text' && typeof block.text === 'string')
+    .map(block => block.text)
+    .join('\n')
+  const isError = result.data.error !== undefined || result.data.message.isError === true
   return { content, isError }
 }
 
@@ -135,7 +130,7 @@ export function renderMessageRows(
     // 不把 skill 正文或 available_skills 全文当用户气泡渲染。
     const inject = renderInjectedChip(message, theme)
     if (inject !== null) return [inject]
-    // #40：runtime context 快照（harness agent-loop 以 kind='plugin'+form='snapshot'
+    // #40：runtime context 快照（agent-loop 以 kind='runtime-context'+form='snapshot'
     // 注入的「Current runtime context…」）是系统状态非对话内容，整行隐藏。
     if (isRuntimeContextRow(message)) return []
     // #40：遗留 <system-reminder> 标签文本（历史回放中的旧注入）不渲染。
@@ -157,12 +152,11 @@ export function renderMessageRows(
 }
 
 /**
- * #40：runtime context 快照行判定——harness agent-loop 把动态上下文以
- * `user/message` + source `{ kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt',
- * form: 'snapshot', sections }` 注入会话日志（deepseek-harness
- * packages/core/agent-loop/src/runtime-context.ts）。按 source 判定而非
- * 内容正则：措辞变化/非英文环境都稳定。全 unknown 防御读取，形状不符
- * 一律 false（回落普通渲染，不抛错）。
+ * #40：runtime context 快照行判定——agent-loop 把动态上下文快照以
+ * `user/message` + source `{ kind: 'runtime-context', form: 'snapshot', sections }`
+ * 注入会话日志（0.2.0 起；旧日志是 `{ kind: 'plugin', form: 'snapshot' }`，
+ * replay 兼容保留）。按 source 判定而非内容正则：措辞变化/非英文环境都稳定。
+ * 全 unknown 防御读取，形状不符一律 false（回落普通渲染，不抛错）。
  * @param message - 转录行（event 为权威事实）。
  * @returns 是否 runtime context 快照行。
  */
@@ -173,7 +167,7 @@ function isRuntimeContextRow(message: TranscriptMessage): boolean {
   }
   if (event.type !== 'user/message') return false
   const source = event.data?.source
-  return source?.kind === 'plugin' && source.form === 'snapshot'
+  return (source?.kind === 'runtime-context' || source?.kind === 'plugin') && source.form === 'snapshot'
 }
 
 /** #40：遗留 <system-reminder> 标签文本（历史回放中的旧注入）从显示中剥离。

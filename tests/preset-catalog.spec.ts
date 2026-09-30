@@ -38,8 +38,8 @@ describe('presetListDetails', () => {
 
   it('无官方 description 用目录能力', () => {
     const d = presetListDetails('minimal')
-    expect(d.capability).toContain('双工具')
-    expect(d.tools).toContain('str_replace_editor')
+    expect(d.capability).toContain('持久 Shell')
+    expect(d.tools).toContain('persistent bash')
   })
 
   it('未知 id 只回官方 description', () => {

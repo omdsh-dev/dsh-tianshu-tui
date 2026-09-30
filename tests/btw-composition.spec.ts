@@ -2,18 +2,27 @@
  * /btw 真实装配集成测试（P1 假设验证 1）。
  *
  * REAL-composition lane：test-only cordis.yml 经 Loader 进程内 boot，真实
- * Cordis Context + 真实服务树（spine 装配 agent-loop → ctx.agents.create 可用），
- * llm-replay 顶掉真适配器。验证计划待验证假设：「btw agent 走 agents.create
- * （fork 完整 turn 前缀为 seed）后 followup(question) 能在不持有 ownedHandle
- * 的情况下正常完成」——经真实输入路径（stdin 键入 /btw 命令）驱动：
+ * Cordis Context + 真实服务树（0.2.0 起直接装配 dsh-session/dsh-agent/
+ * dsh-agent-loop → ctx.agents.create 可用），llm-replay 顶掉真适配器。
+ * 验证计划待验证假设：「btw agent 走 agents.create（fork 完整 turn 前缀为
+ * seed）后 followup(question) 能在不持有 ownedHandle 的情况下正常完成」——
+ * 经真实输入路径（stdin 键入 /btw 命令）驱动：
  * 1. btw agent 创建 → followup → llm-replay 回放单轮回答
  * 2. 答案经 session/event 流收集渲染为侧问面板（loading → done）
  * 3. Esc 折叠：答案以 [btw] 前缀写入 scrollback
  *
  * llm-replay 语义：按 live session 出现顺序分配脚本（新 session 认领下一个
  * 未绑定脚本）。主会话 attach 不驱动模型调用，btw 会话是第一个调用者 →
- * 拿 scripts[0]。fixture 事件只需 assistant/chunk（deriveReplayScript 从
- * assistant/chunk 推导 StreamChunk 列表，finish 结尾）。
+ * 拿 scripts[0]。fixture 事件只需 turn/step + assistant/attempt
+ * （deriveReplayScript 从 assistant/attempt 的 stream 推导 StreamChunk 列表，
+ * finish 结尾）。
+ *
+ * 0.2.0 适配注记：
+ * - dsh-settings-file / dsh-agent-spine-demo 均不存在了；settings 是 TUI 的
+ *   可选服务（未注册即跳过等待），spine-demo 的 sessions+agents 由
+ *   dsh-session / dsh-agent / dsh-agent-loop 直接提供。
+ * - 夹具 session.jsonl 头部按当前线上格式：version 4（SESSION_FORMAT_VERSION，
+ *   物理头 = v2 框架 + delegationDepth 必填）。
  *
  * @module @deepseek-ai/dsh-tianshu-tui/tests/btw-composition
  */
@@ -28,20 +37,19 @@ import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import type { ReadStream, WriteStream } from 'node:tty'
-import SettingsLocal from '@deepseek-ai/dsh-settings-file'
 import CredentialsLocal from '@deepseek-ai/dsh-credentials-local'
 import UserApproval from '@deepseek-ai/dsh-user-approval'
 import UserQuestions from '@deepseek-ai/dsh-user-questions'
+import Llm from '@deepseek-ai/dsh-llm'
 import * as LlmReplay from '@deepseek-ai/dsh-llm-replay'
-import * as AgentSpine from '@deepseek-ai/dsh-agent-spine-demo'
-import { installSpineEventsCompat } from './spine-events-compat.js'
-
-// spine-demo 停在 alpha.2：安装 Session.events → snapshotEvents 兼容垫片（见模块头）
-installSpineEventsCompat()
+import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjection from '@deepseek-ai/dsh-session-projection'
+import AgentRegistry from '@deepseek-ai/dsh-agent'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import Tools from '@deepseek-ai/dsh-tools'
 import AgentDefaultModel from '@deepseek-ai/dsh-agent-default-model'
 import Subagent from '@deepseek-ai/dsh-subagent'
-  import AgentLoop from '@deepseek-ai/dsh-agent-loop'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import * as Tui from '../src/index.js'
 
 /** 可渲染的 stdout 替身（loader-composition 同款）。 */
@@ -97,8 +105,8 @@ interface Booted {
 }
 
 /**
- * Boot 真实 TUI 装配（agent-spine 提供 agents.create factory；llm-replay 录制
- * 一条 btw 回答）。主会话 attach 不调模型，btw 会话是第一个调用者 → 拿脚本。
+ * Boot 真实 TUI 装配（0.2.0 单包服务树提供 agents.create factory；llm-replay
+ * 录制一条 btw 回答）。主会话 attach 不调模型，btw 会话是第一个调用者 → 拿脚本。
  */
 export async function boot(): Promise<Booted> {
   root = await mkdtemp(join(tmpdir(), 'dsh-tui-btw-'))
@@ -108,11 +116,12 @@ export async function boot(): Promise<Booted> {
   const stdin = makeStdin()
 
   // llm-replay 脚本：一条模型调用（btw 回答流）。text-delta 即答案文本，
-  // finish 结尾（deriveReplayScript 要求完整流；0.1.5 起从 assistant/attempt 推导）。
+  // finish 结尾（deriveReplayScript 要求完整流；从 assistant/attempt 的
+  // stream 记录推导）。0.2.0：头部 version 4 + delegationDepth；attempt 前
+  // 须有打开的 turn/step（v4 关系校验事件次序）。
   const fixturePath = join(root, 'session.jsonl')
   await writeFile(fixturePath, [
-    JSON.stringify({ type: 'session', version: 3, id: 'btw-s1', createdAt: 0, isSeeded: false, delegationDepth: 0 }),
-    // attempt 前须有打开的 turn/step（v3 校验事件次序）
+    JSON.stringify({ type: 'session', version: 4, id: 'btw-s1', createdAt: 0, isSeeded: false, delegationDepth: 0 }),
     JSON.stringify({ type: 'turn/start', seq: 0, time: 0, data: { turn: 1 } }),
     JSON.stringify({ type: 'step/start', seq: 1, time: 0, data: { turn: 1, step: 1 } }),
     JSON.stringify({ type: 'assistant/attempt', seq: 2, time: 0, data: { turn: 1, step: 1, stream: [
@@ -123,14 +132,16 @@ export async function boot(): Promise<Booted> {
 
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, [
-    '- id: settings',
-    "  name: '@deepseek-ai/dsh-settings-file'",
+    // settings 缺席：dsh-settings 需要 profileContext（真实 profile 启动才有），
+    // 组合测试激活不了；TUI 对未注册服务跳过等待（waitForServicesReady）。
     '- id: credentials',
     "  name: '@deepseek-ai/dsh-credentials-local'",
     '- id: user-approval',
     "  name: '@deepseek-ai/dsh-user-approval'",
     '- id: user-questions',
     "  name: '@deepseek-ai/dsh-user-questions'",
+    '- id: llm',
+    "  name: '@deepseek-ai/dsh-llm'",
     '- id: llm-replay',
     "  name: '@deepseek-ai/dsh-llm-replay'",
     '  config:',
@@ -140,7 +151,17 @@ export async function boot(): Promise<Booted> {
     '        models:',
     '          - id: deepseek-v4-flash',
     '            contextWindow: 128000',
-    '- id: agent-n',
+    '- id: sessions',
+    "  name: '@deepseek-ai/dsh-session'",
+    '- id: session-projections',
+    "  name: '@deepseek-ai/dsh-session-projection'",
+    '- id: agents',
+    "  name: '@deepseek-ai/dsh-agent'",
+    '- id: system-prompt',
+    "  name: '@deepseek-ai/dsh-system-prompt'",
+    '- id: tools',
+    "  name: '@deepseek-ai/dsh-tools'",
+    '- id: agent-default-model',
     "  name: '@deepseek-ai/dsh-agent-default-model'",
     '  config:',
     '    provider: deepseek-official',
@@ -148,20 +169,7 @@ export async function boot(): Promise<Booted> {
     '- id: subagent',
     "  name: '@deepseek-ai/dsh-subagent'",
     '- id: agent-loop',
-      "  name: '@deepseek-ai/dsh-agent-loop'",
-    '- id: agent-spine',
-    "  name: '@deepseek-ai/dsh-agent-spine-demo'",
-    '  config:',
-    '    agents:',
-    '      - id: main',
-    '        provider: deepseek-official',
-    '        model: deepseek-v4-flash',
-    `        cwd: ${JSON.stringify(root)}`,
-    '    goals: {}',
-    '    workspaceContext:',
-    '      maxBytes: 65536',
-    '    persona: |',
-    '      You are the tui composition-test agent, powered by the {{model}} model.',
+    "  name: '@deepseek-ai/dsh-agent-loop'",
     '- id: tui-runner',
     "  name: '@huiliyi37/dsh-tianshu-tui'",
     '',
@@ -174,15 +182,19 @@ export async function boot(): Promise<Booted> {
     },
   }
   const modules = new Map<string, unknown>([
-    ['@deepseek-ai/dsh-settings-file', SettingsLocal],
     ['@deepseek-ai/dsh-credentials-local', CredentialsLocal],
     ['@deepseek-ai/dsh-user-approval', UserApproval],
     ['@deepseek-ai/dsh-user-questions', UserQuestions],
+    ['@deepseek-ai/dsh-llm', Llm],
     ['@deepseek-ai/dsh-llm-replay', LlmReplay],
+    ['@deepseek-ai/dsh-session', SessionStore],
+    ['@deepseek-ai/dsh-session-projection', SessionProjection],
+    ['@deepseek-ai/dsh-agent', AgentRegistry],
+    ['@deepseek-ai/dsh-system-prompt', SystemPrompt],
+    ['@deepseek-ai/dsh-tools', Tools],
     ['@deepseek-ai/dsh-agent-default-model', AgentDefaultModel],
     ['@deepseek-ai/dsh-subagent', Subagent],
-  ['@deepseek-ai/dsh-agent-loop', AgentLoop],
-    ['@deepseek-ai/dsh-agent-spine-demo', AgentSpine],
+    ['@deepseek-ai/dsh-agent-loop', AgentLoop],
     ['@huiliyi37/dsh-tianshu-tui', wrappedTui],
   ])
 

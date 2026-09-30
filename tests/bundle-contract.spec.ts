@@ -72,7 +72,7 @@ describe('published bundle contract', () => {
     })
   }
 
-  it('#47 本包 patch 挂 agent-presets 并关掉 host agent 面（对标 web）', () => {
+  it('#47 本包 patch 挂 agent-preset-registry 并关掉 host agent 面（对标 web）', () => {
     const patch = readRepo('cordis.patch.yml')
     const pkg = JSON.parse(readRepo('package.json')) as {
       dsh?: { bundle?: { patch?: string } }
@@ -81,16 +81,19 @@ describe('published bundle contract', () => {
     expect(pkg.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
     expect(patch).toContain('id: tui-runner')
     expect(patch).toContain('@huiliyi37/dsh-tianshu-tui')
-    expect(patch).toContain('id: agent-presets')
-    expect(patch).toContain('@deepseek-ai/dsh-agent-presets')
+    // 0.2.0：官方预设架构改为注册表 + 声明行（dsh-agent-presets 已退场）
+    expect(patch).toContain('id: agent-preset-registry')
+    expect(patch).toContain('@deepseek-ai/dsh-agent-preset-registry')
+    expect(patch).toContain("name: '@deepseek-ai/dsh-agent-preset'")
     expect(patch).toMatch(/id:\s*tool-bash[\s\S]*disabled:\s*true/)
-    expect(pkg.dependencies?.['@deepseek-ai/dsh-agent-presets']).toBe('0.1.5-rc.1')
+    expect(pkg.dependencies?.['@deepseek-ai/dsh-agent-preset-registry']).toBe('0.2.0-rc.1')
+    expect(pkg.dependencies?.['@deepseek-ai/dsh-agent-preset']).toBe('0.2.0-rc.1')
   })
 
-  it('官方预设包可解析时（无则跳过）不声明自己的 bundle.patch', async () => {
+  it('官方预设注册表可解析时（无则跳过）不声明自己的 bundle.patch', async () => {
     let manifest: { dsh?: { bundle?: { patch?: string } } }
     try {
-      manifest = (await import('@deepseek-ai/dsh-agent-presets/package.json', {
+      manifest = (await import('@deepseek-ai/dsh-agent-preset-registry/package.json', {
         with: { type: 'json' },
       })).default as { dsh?: { bundle?: { patch?: string } } }
     } catch {

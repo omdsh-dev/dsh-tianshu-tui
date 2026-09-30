@@ -29,11 +29,11 @@ TUI 是**纯展示层**:
 | `agents` | agent 铸造、会话恢复 |
 | `agentDefaultModel` | 默认模型选择(读写) |
 
-### 装配后应有(本包 bundle 挂 `agent-presets`;缺则新会话无工具面)
+### 装配后应有(本包 bundle 挂 `agent-preset-registry`;缺则新会话无工具面)
 
 | 服务 | 用途 |
 |---|---|
-| `agentPresets` | 花名册;`setup` 里 `mount` / `composeFrom`;`/preset` `recompose` |
+| `agentPresets` | 注册表;`setup` 里 `mount` / `composeFrom`;`/preset` `recompose` |
 
 ### 可选(经 `ctx.reflect.get`,缺则相关能力 fails loud,不阻塞启动)
 
@@ -92,12 +92,14 @@ TUI 只订阅、只读、从不发布以下事件(会话事件按 owner 过滤):
 
 ## Bundle Patch
 
-`cordis.patch.yml` 在 `dsh-base` 之上插入 `tui-runner` 与官方 `agent-presets`,
-并关掉 host 上的 agent 面行(由 shipped 预设再挂)。插件名 `tui-runner` 固定。
+`cordis.patch.yml` 在 `dsh-base` 之上插入 `tui-runner` 与官方 `agent-preset-registry`
+（0.2.0 起取代旧 `dsh-agent-presets` 花名册包；预设以 `dsh-agent-preset` 声明行
+随包携带，与官方 web-app 的 presets/*.patch.yml 逐字同源），并关掉 host 上的
+agent 面行（由 shipped 预设再挂）。插件名 `tui-runner` 固定。
 `lib/index.js` 是打包产物,必须跟仓(见 docs/RELEASE.md)。
 
 ## 契约版本线
 
-- peerDependencies:`@deepseek-ai/*` `^0.1.0-rc.6`、`@deepseek-ai/cordis` `^4.0.1`
-- README 里的官方 CLI `0.1.0-rc.6` 是宿主版本,不是本包版本
+- peerDependencies:`@deepseek-ai/*` `^0.2.0-rc.1`、`@deepseek-ai/cordis` `^4.0.4`
+- README 里的官方 CLI `0.2.0-rc.1`（npm `next` 标签）是宿主版本,不是本包版本
 - 宿主版本漂移时:先升级 peer 范围再发版,不静默容忍

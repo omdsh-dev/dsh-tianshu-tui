@@ -1,9 +1,9 @@
 /**
  * 官方 shipped 预设的展示目录：短名、能力、工具集。
  *
- * 花名册 list() 已有 preset.yml 的 name/description；本表补「工具集 + 能力」
- * 给 /preset 列表与 footer/顶栏短名。id 对齐 CLI
- * apps/cli/config/agent-presets/{standard,ptc,minimal,cordis}（rc.1 起 code → ptc）。
+ * 花名册 list() 已有声明行的 name/description；本表补「工具集 + 能力」
+ * 给 /preset 列表与 footer/顶栏短名。id 对齐本包 cordis.patch.yml 的
+ * preset-{standard,ptc,minimal,cordis} 声明行（与官方 web-app 0.2.0 预设同源）。
  *
  * @module @huiliyi37/dsh-tianshu-tui/preset-catalog
  */
@@ -41,8 +41,8 @@ const BLURBS: readonly ShippedPresetBlurb[] = [
     id: 'minimal',
     short: '极简',
     name: '极简模式',
-    capability: '少干扰双工具编码面，适合评测与只要 shell + 改文件的任务',
-    tools: 'bash · str_replace_editor',
+    capability: '少干扰持久 Shell 编码面，适合评测与只要终端的任务',
+    tools: 'persistent bash（持久 Shell）',
   },
   {
     id: 'cordis',

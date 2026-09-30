@@ -8,22 +8,22 @@ dsh-tianshu-tui is an interactive terminal UI plugin for the official DeepSeek H
 - [`pnpm`](https://pnpm.io/installation) on your PATH (`dsh plugin` forwards to it)
 - An API key to run models: `DEEPSEEK_API_KEY` (or the official CLI's login flow)
 
-> **Do not type bare `dsh`.** If an old `dsh` is already on your PATH (e.g. `~/.local/bin/dsh` whose `dsh --version` is not `0.1.0-rc.6`), it will hit the local staging path and fail with `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`. Always use the `npx` commands below.
+> **Do not type bare `dsh`.** If an old `dsh` is already on your PATH (e.g. `~/.local/bin/dsh` whose `dsh --version` is below `0.2.0-rc.1`), it will hit the local staging path and fail with `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`. Always use the `npx` commands below.
 
 ## Install
 
 ```sh
 # 1. Add the plugin to the tui profile
-npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh@next plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 
 # 2. Launch
-npx -y @deepseek-ai/dsh --profile tui
+npx -y @deepseek-ai/dsh@next --profile tui
 ```
 
 You are up when the welcome page shows the **dsh-tianshu-tui** brand. Exit with `Ctrl+Q` or `/exit`.
 
 - pnpm may warn about missing peers — ignore it: peers are provided by the official `dsh` host.
-- If the official CLI is installed globally with the right version, replace `npx -y @deepseek-ai/dsh` with `dsh`.
+- If the official CLI is installed globally with the right version, replace `npx -y @deepseek-ai/dsh@next` with `dsh`.
 - Install from Git: `dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`.
 
 ## First Run
@@ -51,12 +51,23 @@ Type a question and press Enter to start. Common operations:
 A stale install fallback in `~/.dsh/profiles/node_modules` conflicts with the official CLI. Use a clean directory:
 
 ```sh
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@next plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@next --profile tui
 ```
 
 **"插件已更新到 …，请重启 dsh 后生效" (plugin updated, please restart)**
 The self-update mechanism bumped the profile's package to the new npm version; restart to apply.
+
+**`plugin add` fails with `plugin command failed` (pnpm ≥ 11.7 / 0.2.0 host)**
+The 0.2.0 host tree carries native build scripts (node-pty etc.), and pnpm ≥ 11.7
+exits 1 while any build is undecided. Open `$DSH_HOME/profiles/tui/pnpm-workspace.yaml`
+and set every placeholder in the `allowBuilds` section (`set this to true or false`)
+to `false` — except `@deepseek-ai/dsh-subprocess-local: true`, which only chmods
+node-pty's prebuilt helper — then re-run `plugin add`.
+If a first failed add left the plugin in `dependencies` but not in
+`dsh.profile.bundles` (boot shows no TUI and no error), run
+`plugin remove @huiliyi37/dsh-tianshu-tui` and `plugin add` again — reconcile only
+registers NEW dependencies as bundles.
 
 **No network update check**
 Set `DSH_TUI_SKIP_UPDATE=1`.
@@ -68,7 +79,7 @@ When the primary model cannot see images, assemble a vision-bridge plugin (`dsh-
 Assemble the community plugin [`omdsh-dev/dsh-lsp`](https://github.com/omdsh-dev/dsh-lsp); the TUI display bridge consumes its `lsp` service automatically, sharing the same LSP server set with the model tool surface.
 
 **`/preset` says "agent-presets service unavailable"**
-Update to a build that assembles the agent plane (`plugin add` of this package pulls the official presets package). The command is `/preset`, not `/presets`. Existing profiles pick up the new dependency on self-update.
+Update to a build that assembles the agent plane (`plugin add` of this package pulls the official preset registry). The command is `/preset`, not `/presets`. Existing profiles pick up the new dependency on self-update.
 
 ## Next Steps
 

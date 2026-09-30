@@ -62,7 +62,7 @@ function rebuildVendor() {
   console.error([
     '缺少 vendor/dsh-runtime（官方 CLI 依赖树），且 npx 缓存中未找到 @deepseek-ai/dsh。',
     '先跑一次 npx 生成缓存：',
-    '  npx -y @deepseek-ai/dsh --version',
+    '  npx -y @deepseek-ai/dsh@next --version',
     '再重新运行本脚本（自动从缓存拷贝，无需手工 cp）。',
   ].join('\n'))
   process.exit(1)
@@ -96,7 +96,7 @@ if (!process.env.DEEPSEEK_API_KEY) {
 
 if (!existsSync(join(PROFILE_DIR, 'package.json'))) {
   console.log('首次运行：装配 profile tui（dsh-base + 本插件 link: 本仓库）...')
-  const add = run([CLI, 'plugin', '--profile', 'tui', 'add', '@deepseek-ai/dsh-base@0.1.1-rc.2', `link:${ROOT}`])
+  const add = run([CLI, 'plugin', '--profile', 'tui', 'add', '@deepseek-ai/dsh-base@0.2.0-rc.1', `link:${ROOT}`])
   if (add.status !== 0) process.exit(add.status ?? 1)
 }
 

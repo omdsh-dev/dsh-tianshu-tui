@@ -32,9 +32,11 @@ function toolResult(seq: number, callId: string, error?: { name: string; code: s
       turn,
       step: 0,
       message: {
-        role: 'user',
+        id: `t-${String(seq)}`,
+        role: 'tool',
         source: { kind: 'tool', callId: callId as ToolCallId },
-        content: [{ type: 'tool-result', toolCallId: callId, content: [] }],
+        toolCallId: callId as ToolCallId,
+        content: [],
       },
       ...(error === undefined ? {} : { error }),
     },

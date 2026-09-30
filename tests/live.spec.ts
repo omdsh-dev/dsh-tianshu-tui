@@ -25,9 +25,11 @@ function toolResult(seq: number, callId: string, turn: number, step: number): Se
       turn,
       step,
       message: {
-        role: 'user',
+        id: `t-${String(seq)}`,
+        role: 'tool',
         source: { kind: 'tool', callId: callId as ToolCallId },
-        content: [{ type: 'tool-result', toolCallId: callId, content: [] }],
+        toolCallId: callId as ToolCallId,
+        content: [],
       },
     },
   } as unknown as SessionEvent

@@ -15,8 +15,8 @@ function userMessage(seq: number, text: string, _turn = 0): SessionEvent {
     seq: SessionSeq(seq),
     time: 1000 + seq,
     type: 'user/message',
-    data: { content: [{ type: 'text', text }] },
-  } as SessionEvent)
+    data: { id: `m-${seq}`, role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] },
+  } as unknown as SessionEvent)
 }
 
 function chunk(seq: number, turn: number, step: number, text: string, kind: 'text-delta' | 'reasoning-delta' = 'text-delta'): SessionEvent {
@@ -34,8 +34,18 @@ function assistantMessage(seq: number, turn: number, step: number, text: string)
     seq: SessionSeq(seq),
     time: 1000 + seq,
     type: 'assistant/message',
-    data: { turn, step, message: { content: [{ type: 'text', text }] } },
-  } as SessionEvent)
+    data: {
+      turn,
+      step,
+      message: {
+        id: `a-${seq}`,
+        role: 'assistant',
+        source: { kind: 'model', provider: 'test', model: 'test' },
+        content: [{ type: 'text', text }],
+      },
+      stream: [],
+    },
+  } as unknown as SessionEvent)
 }
 
 function toolCall(seq: number, callId: string, name: string, raw: string, turn: number, step: number): SessionEvent {
@@ -47,7 +57,7 @@ function toolCall(seq: number, callId: string, name: string, raw: string, turn: 
   })
 }
 
-function toolResult(seq: number, callId: string, _content: string, error?: { name: string; code: string }): SessionEvent {
+function toolResult(seq: number, callId: string, content: string, error?: { name: string; code: string }): SessionEvent {
   return ev({
     seq: SessionSeq(seq),
     time: 1000 + seq,
@@ -55,10 +65,13 @@ function toolResult(seq: number, callId: string, _content: string, error?: { nam
     data: {
       turn: 0,
       step: 0,
+      // 0.2.0：一等 ToolResultMessage——role 'tool'，toolCallId 在消息级。
       message: {
-        role: 'user',
+        id: `t-${seq}`,
+        role: 'tool',
         source: { kind: 'tool', callId: callId as ToolCallId },
-        content: [{ type: 'tool', toolCallId: callId }],
+        toolCallId: callId as ToolCallId,
+        content: [{ type: 'text', text: content }],
       },
       ...(error === undefined ? {} : { error }),
     },
@@ -100,13 +113,17 @@ describe('applyTranscriptEvent', () => {
         turn: 1,
         step: 0,
         message: {
+          id: 'a-1',
+          role: 'assistant',
+          source: { kind: 'model', provider: 'test', model: 'test' },
           content: [
             { type: 'text', text: 'answer' },
             { type: 'reasoning', text: 'hidden', summary: [] },
           ],
         },
+        stream: [],
       },
-    } as SessionEvent))
+    } as unknown as SessionEvent))
     expect(view.messages[0]?.text).toBe('answer')
     expect(view.messages[0]?.reasoning).toBe('hidden')
   })

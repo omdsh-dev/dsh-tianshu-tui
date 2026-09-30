@@ -315,6 +315,6 @@ export function buildVisionMessage(prompt: string, refs: readonly ImageAttachmen
       { type: 'text', text: prompt },
       ...refs.map(ref => ({ type: 'image' as const, attachment: ref })),
     ],
-    source: { kind: 'plugin', plugin: 'vision-ask' },
+    source: { kind: 'user' },
   })
 }

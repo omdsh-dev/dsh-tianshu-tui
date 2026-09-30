@@ -148,8 +148,8 @@ export function applyTranscriptEvent(view: TranscriptView, event: SessionEvent):
       return { ...base, tools: [...base.tools, tool] }
     }
     case 'tool/result': {
-      // The paired block carries the call identity as `toolCallId`.
-      const { toolCallId: callId } = event.data.message.content[0]
+      // 0.2.0：结果消息是一等 ToolResultMessage，call 身份在消息级 toolCallId。
+      const callId = event.data.message.toolCallId
       const tools = base.tools.map((tool) => {
         if (tool.callId !== callId) return tool
         return {

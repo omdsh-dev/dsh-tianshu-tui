@@ -1797,7 +1797,7 @@ describe('内置命令 — /preset（agent 预设模式切换）', () => {
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('极简模式'))
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('创造模式'))
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('当前: minimal · 极简'))
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('工具: bash · str_replace_editor'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('工具: persistent bash（持久 Shell）'))
     // 当前项带星标：极简行以 * 开头
     const starred = echo.mock.calls.map(c => String(c[0])).find(l => l.includes('极简模式'))
     expect(starred?.startsWith(' *')).toBe(true)
